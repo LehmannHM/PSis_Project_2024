@@ -32,6 +32,10 @@ int main() {
     // Receive assigned letter
     char astronaut_id;
     zmq_recv(requester, &astronaut_id, 1, 0);
+    if (astronaut_id < 'A' || astronaut_id > 'H') {
+        printf("Max Players reached");
+        return 0;
+    }
 
     int score = 0;
     char msg[3];
