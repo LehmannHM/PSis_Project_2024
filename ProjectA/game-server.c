@@ -13,6 +13,9 @@
 #define STUN_DURATION 10
 #define ZAP_COOLDOWN 3
 
+#define ASTRONAUT_MIN 2
+#define ASTRONAUT_MAX FIELD_SIZE + 2
+
 typedef struct {
     char game_field[FIELD_SIZE][FIELD_SIZE];
     int astronaut_scores[MAX_PLAYERS];
@@ -22,8 +25,9 @@ typedef struct {
     char id;
     int x, y;
     int score;
-    time_t last_stunned; // Last stunned time
-    time_t last_zap; // Last zap time
+    clock_t last_stunned; // Last stunned time
+    clock_t last_zap; // Last zap time
+    char move_type;
     void *client_socket;
 } Astronaut;
 
@@ -61,7 +65,7 @@ void initializeGame() {
 }
 
 void updateGameState() {
-    time_t current_time;
+    clock_t current_time;
     time(&current_time);
 
     // Add seconds 
@@ -70,8 +74,27 @@ void updateGameState() {
         last_alien_move = current_time;
     }
 
-    // Update lasers and handle laser outcome
+    // Update laser rays
 }
+
+void sendGameState(void *socket) {
+    // Create a buffer to hold the serialized data
+    char buffer[FIELD_SIZE * FIELD_SIZE + MAX_PLAYERS * sizeof(int) + 1];
+    int offset = 0;
+
+    // Serialize game_field
+    for (int i = 0; i < FIELD_SIZE; i++) {
+        memcpy(buffer + offset, game_state.game_field[i], FIELD_SIZE);
+        offset += FIELD_SIZE;
+    }
+
+    // Serialize astronaut_scores
+    memcpy(buffer + offset, game_state.astronaut_scores, MAX_PLAYERS * sizeof(int));
+    
+    // Send the serialized data
+    zmq_send(socket, buffer, sizeof(buffer), 0);
+}
+
 
 char validateMessage(char *message, int length) {
     if (length < 2) return 0;
@@ -89,6 +112,28 @@ int findAstronautIndex(char id) {
     return -1;
 }
 
+void moveAustronautInField(int old_x, int old_y, int new_x, int new_y) {
+    if (old_x == new_x && old_y == new_y) return;
+    game_state.game_field[new_x][new_y] = game_state.game_field[old_x][old_y];
+    game_state.game_field[old_x][old_y] = ' ';
+}
+
+void moveAustronautInZone(Astronaut* astronaut, int new_x, int new_y) {
+    if (astronaut->move_type == 'V') {
+        for (int y = ASTRONAUT_MIN; y <= ASTRONAUT_MAX, y++;) {
+            game_state.game_field[astronaut->x][y] = ' '; 
+        }
+    } else  if (astronaut->move_type == 'H') {
+        for (int x = ASTRONAUT_MIN; x <= ASTRONAUT_MAX, x++;) {
+            game_state.game_field[x][astronaut->y] = ' '; 
+        }
+    }
+
+    if (new_x > 0 && new_y > 0) {
+        game_state.game_field[new_x][new_x] = astronaut->id;
+    }
+}
+
 void handleAstronautConnect(void *client_socket) {
     if (astronaut_count >= MAX_PLAYERS) {
         zmq_send(client_socket, "F", 1, 0); // F for Full
@@ -99,8 +144,17 @@ void handleAstronautConnect(void *client_socket) {
     astronauts[astronaut_count].client_socket = client_socket;
     
     //Initialize Position from ID
-    
-    // Initialize other astronaut properties
+    int middle = 10;
+    if (astronaut_count % 2 == 0) {
+        astronauts[astronaut_count].move_type = 'V';
+        astronauts[astronaut_count].x = 1;
+        astronauts[astronaut_count].y = middle;
+    } else {
+        astronauts[astronaut_count].move_type = 'H';
+        astronauts[astronaut_count].x = middle;
+        astronauts[astronaut_count].y = 1;
+    }
+
     astronaut_count++;
     char response[2] = {id, '\0'};
     zmq_send(client_socket, response, 2, 0);
@@ -111,8 +165,38 @@ void handleAstronautMovement(char id, char direction) {
     time_t current_time = time(NULL);
     if (index == -1 || difftime(current_time, astronauts[index].last_stunned) < STUN_DURATION) return;
 
-    // Implement movement logic based on astronaut's region and movement type
-    // Update astronaut position
+    int new_x = astronauts[index].x;
+    int new_y = astronauts[index].y;
+
+    if (astronauts[index].move_type == 'V') { // Vertical movement
+        switch(direction) {
+            case 'D': // Move down
+                new_y++;
+                break;
+            case 'U': // Move up
+                new_y--;
+                break;
+        }
+    } else if (astronauts[index].move_type == 'H') { // Horizontal movement
+        switch(direction) {
+            case 'R': // Move right
+                new_x++;
+                break;
+            case 'L': // Move left
+                new_x--;
+                break;
+        }
+    }
+
+    // Check bounds for vertical movement
+    if (new_y >= ASTRONAUT_MIN && new_y <= ASTRONAUT_MAX) {
+        astronauts[index].y = new_y; // Update position if within bounds
+    }
+
+    // Check bounds for horizontal movement
+    if (new_x >= ASTRONAUT_MIN && new_x <= ASTRONAUT_MAX) {
+        astronauts[index].x = new_x; // Update position if within bounds
+    }
 
     char response[20];
     snprintf(response, sizeof(response), "%d", astronauts[index].score);
@@ -142,6 +226,7 @@ void handleAstronautDisconnect(char id) {
     if (index == -1) return;
 
     // Remove astronaut from the game
+    // TODO: this will move the following astronauts but this may not be wanted
     for (int i = index; i < astronaut_count - 1; i++) {
         astronauts[i] = astronauts[i + 1];
     }
@@ -180,6 +265,15 @@ void processMessage(void *socket) {
     }
 }
 
+void printGameField(GameState *state) {
+    for (int i = 0; i < FIELD_SIZE; i++) {
+        for (int j = 0; j < FIELD_SIZE; j++) {
+            printf("%c ", state->game_field[i][j]);
+        }
+        printf("\n");
+    }
+}
+
 int main() {
     void *context = zmq_ctx_new();
 
@@ -197,18 +291,11 @@ int main() {
 
     initializeGame();
 
-    int new_pid = fork();
-
-    if (new_pid == 0) {
-        while (1) {
-            updateGameState();
-            // sendUpdate();
-            sleep(0.1);
-        }
-    } else {
-        while (1) {
-            processMessage(responder_interaction);
-        }
+    while (1) {
+        processMessage(responder_interaction);
+        updateGameState();
+        printGameField(&game_state);
+        sendGameState(publisher_display);
     }
 
     zmq_close(responder_interaction);
