@@ -2,12 +2,7 @@
 #include <ncurses.h>
 #include <stdio.h>
 #include <string.h>
-#include "sockets.h"
-
-#define CONNECT 'C'
-#define MOVE 'M'
-#define ZAP 'Z'
-#define DISCONNECT 'D'
+#include "common.h"
 
 int main() {
     void *context = zmq_ctx_new();
@@ -22,65 +17,65 @@ int main() {
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
-
+    
+    astronaut_client m;
+    int code;
     // Connect to server
-    char connect_msg[2] = {CONNECT, '\0'};
-    if (zmq_send(requester, connect_msg, sizeof(connect_msg), 0) == -1) {
+    m.msg_type = 0;
+    if (zmq_send(requester, &m, sizeof(m), 0) == -1) {
         printf("Error sending message: %s\n", zmq_strerror(zmq_errno()));
     }
 
     // Receive assigned letter
-    char astronaut_id;
-    zmq_recv(requester, &astronaut_id, 1, 0);
-    if (astronaut_id < 'A' || astronaut_id > 'H') {
+    astronaut_connect connect_reply;
+    zmq_recv(requester, &connect_reply, sizeof(astronaut_connect), 0);
+    if (connect_reply.id < 'A' || connect_reply.id > 'H') {
         printf("Max Players reached");
         return 0;
     }
 
+    code = connect_reply.code;
+
     int score = 0;
-    char msg[3];
     int ch;
+    m.id = connect_reply.id;
+    m.code = connect_reply.code;
 
     while ((ch = getch()) != 'q' && ch != 'Q') {
-        msg[0] = '\0';
-        msg[1] = astronaut_id;
-        msg[2] = '\0';
-
+        m.msg_type = 1;
+        
         switch (ch) {
             case KEY_UP:
-                msg[0] = MOVE;
-                msg[2] = 'U';
+                m.direction = UP;
                 break;
             case KEY_DOWN:
-                msg[0] = MOVE;
-                msg[2] = 'D';
+                m.direction = DOWN;
                 break;
             case KEY_LEFT:
-                msg[0] = MOVE;
-                msg[2] = 'L';
+                m.direction = LEFT;
                 break;
             case KEY_RIGHT:
-                msg[0] = MOVE;
-                msg[2] = 'R';
+                m.direction = RIGHT;
                 break;
             case ' ':
-                msg[0] = ZAP;
+                m.msg_type = 2;
                 break;
             default:
                 continue;
         }
 
-        zmq_send(requester, msg, 3, 0);
-        zmq_recv(requester, &score, sizeof(int), 0);
+        zmq_send(requester, &m, sizeof(m), 0);
 
-        mvprintw(0, 0, "Astronaut %c - Score: %d", astronaut_id, score);
+        int astronaut_scores[MAX_PLAYERS];
+        zmq_recv(requester, &astronaut_scores, sizeof(int), 0);
+        
+        mvprintw(0, 0, "Astronaut %c - Score: %d", m.id, astronaut_scores[0]);
         refresh();
     }
 
     // Disconnect
-    msg[0] = DISCONNECT;
-    msg[1] = astronaut_id;
-    zmq_send(requester, msg, 2, 0);
+    m.msg_type = 3;
+    zmq_send(requester, &m, 2, 0);
     zmq_recv(requester, NULL, 0, 0);
 
     // Cleanup
