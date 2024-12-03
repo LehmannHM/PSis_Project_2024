@@ -1,0 +1,23 @@
+{
+    "files.associations": {
+        "time.h": "c"
+    },
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/matthi/projects/project",
+            "binaryPath": "/home/matthi/projects/project/game-server",
+            "binaryArgs": []
+        },
+        {
+            "cwd": "/home/matthi/projects/project/ProjectA",
+            "binaryPath": "/home/matthi/projects/project/ProjectA/game-server",
+            "binaryArgs": []
+        },
+        {
+            "cwd": "/home/matthi/projects/project/ProjectA",
+            "binaryPath": "/home/matthi/projects/project/ProjectA/astronaut-client",
+            "binaryArgs": []
+        }
+    ],
+    "makefile.configureOnOpen": false
+}

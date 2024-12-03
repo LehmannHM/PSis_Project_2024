@@ -1,0 +1,44 @@
+{
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "Debug Game Server",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/ProjectA/game-server",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/ProjectA",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "preLaunchTask": "build"
+        },
+        {
+            "name": "Debug Astronaut Client",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/ProjectA/astronaut-client",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/ProjectA",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "preLaunchTask": "build"
+        },
+        {
+            "name": "Debug Outer Space Display",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/ProjectA/outer-space-display",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/ProjectA",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "preLaunchTask": "build"
+        }
+    ]
+}
