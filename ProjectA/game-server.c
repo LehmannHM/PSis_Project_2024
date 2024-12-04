@@ -22,9 +22,9 @@ typedef struct {
     int score;
     clock_t last_stunned; // Last stunned time
     clock_t finished_zap; // Last zap time
+    int zap_active;
     char move_type;
     int code;
-    // void *client_socket;
 } Astronaut;
 
 typedef struct {
@@ -35,7 +35,7 @@ game_state state;
 Astronaut astronauts[MAX_PLAYERS];
 int astronaut_count = 0;
 
-time_t last_alien_move;
+clock_t last_alien_move;
 
 void initializeGame() {
     // Initialize the game field to empty spaces
@@ -60,6 +60,13 @@ void initializeGame() {
     }
 }
 
+int findAstronautIndex(char id) {
+    for (int i = 0; i < astronaut_count; i++) {
+        if (astronauts[i].id == id) return i;
+    }
+    return -1;
+}
+
 void updateGameState() {
     clock_t current_time;
     time(&current_time);
@@ -71,39 +78,70 @@ void updateGameState() {
     }
 
     // Update laser rays
-}
+    for (int i = 0; i < astronaut_count; i++) {
+        if (astronauts[i].zap_active) {
+            // Check if the laser duration has expired
+            if (difftime(current_time, astronauts[i].finished_zap) >= 0.5 * CLOCKS_PER_SEC) {
+                astronauts[i].zap_active = 0; // Deactivate zap
+                
+                // Clear the laser from game field
+                if (astronauts[i].move_type == 'H') { 
+                    for (int j = 0; j < FIELD_SIZE; j++) {
+                        state.game_field[astronauts[i].x][j] = ' '; // Clear horizontal laser
+                    }
+                } else if (astronauts[i].move_type == 'V') { 
+                    for (int j = 0; j < FIELD_SIZE; j++) {
+                        state.game_field[j][astronauts[i].y] = ' '; // Clear vertical laser
+                    }
+                }
+                continue;
+            }
 
-void sendGameState(void *socket) {
-    // Create a buffer to hold the serialized data
-    char buffer[FIELD_SIZE * FIELD_SIZE + MAX_PLAYERS * sizeof(int) + 1];
-    int offset = 0;
+            // Check for alien hits in the zap's path
+            int start_x = astronauts[i].x;
+            int start_y = astronauts[i].y;
 
-    // Serialize game_field
-    for (int i = 0; i < FIELD_SIZE; i++) {
-        memcpy(buffer + offset, state.game_field[i], FIELD_SIZE);
-        offset += FIELD_SIZE;
+            if (astronauts[i].move_type == 'H') { 
+                for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
+                    if (state.game_field[start_x][j] == '*') { 
+                        state.game_field[start_x][j] = ' '; // Remove alien from field
+                        astronauts[i].score++; 
+                        // printf("Alien hit by %c! Score: %d\n", astronauts[i].id, astronauts[i].score);
+                    }
+                }
+            } else if (astronauts[i].move_type == 'V') { 
+                for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
+                    if (state.game_field[j][start_y] == '*') { 
+                        state.game_field[j][start_y] = ' '; 
+                        astronauts[i].score++; 
+                        // printf("Alien hit by %c! Score: %d\n", astronauts[i].id, astronauts[i].score);
+                    }
+                }
+            }
+
+            // Check for other astronauts in the line of fire
+            for (int j = 0; j < astronaut_count; j++) {
+                if (astronauts[j].id != astronauts[i].id) { 
+                    if ((astronauts[i].move_type == 'H' && astronauts[j].y >= ASTRONAUT_MIN && astronauts[j].y <= ASTRONAUT_MAX &&
+                         state.game_field[astronauts[i].x][astronauts[j].y] == '-') || 
+                        (astronauts[i].move_type == 'V' && astronauts[j].x >= ASTRONAUT_MIN && astronauts[j].x <= ASTRONAUT_MAX &&
+                         state.game_field[astronauts[j].x][astronauts[i].y] == '|')) {
+                        astronauts[j].last_stunned = current_time; 
+                        printf("Astronaut %c stunned by %c!\n", astronauts[j].id, astronauts[i].id);
+                    }
+                }
+            }
+        }
     }
 
-    // Serialize astronaut_scores
-    memcpy(buffer + offset, state.astronaut_scores, MAX_PLAYERS * sizeof(int));
-    
-    // Send the serialized data
-    zmq_send(socket, buffer, sizeof(buffer), 0);
 }
 
 char validateMessage(astronaut_client *message) {
-    // char type = message[0];
-    // char id = message[1];
-    // if (type != 'C' && type != 'M' && type != 'Z' && type != 'D') return 0;
+    if (message->msg_type < 0 || message->msg_type > 3) return 0;
     if (message->id < 'A' || message->id > 'H') return 0;
+    int index = findAstronautIndex(message->id);
+    if (index < 0 || message->code != astronauts[index].code) return 0;
     return message->id;
-}
-
-int findAstronautIndex(char id) {
-    for (int i = 0; i < astronaut_count; i++) {
-        if (astronauts[i].id == id) return i;
-    }
-    return -1;
 }
 
 void moveAustronautInField(int old_x, int old_y, int new_x, int new_y) {
@@ -128,10 +166,13 @@ void moveAustronautInZone(Astronaut* astronaut, bool delete) {
     }
 }
 
-char handleAstronautConnect(void *client_socket) {
+void handleAstronautConnect(void *client_socket) {
+    astronaut_connect con_reply;
     if (astronaut_count >= MAX_PLAYERS) {
-        zmq_send(client_socket, "Z", 1, 0); // F for Full
-        return 'Z';
+        con_reply.id = 'Z';
+        con_reply.code = -1;
+        zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
+        return;
     }
     char id = 'A' + astronaut_count;
     astronauts[astronaut_count].id = id;
@@ -148,9 +189,14 @@ char handleAstronautConnect(void *client_socket) {
         astronauts[astronaut_count].y = 1;
     }
     moveAustronautInZone(&astronauts[astronaut_count], false);
-
+    
+    con_reply.id = id;
+    con_reply.code = random();
+    astronauts[astronaut_count].code = con_reply.code;
+    zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
     astronaut_count++;
-    return id;
+
+    return;
 }
 
 void handleAstronautMovement(char id, direction_t direction) {
@@ -199,13 +245,26 @@ void handleAstronautZap(char id) {
     if (index == -1 || astronauts[index].last_stunned > 0) return;
 
     clock_t current_time = clock() * CLOCKS_PER_SEC;
-    if (difftime(current_time, astronauts[index].finished_zap) < ZAP_COOLDOWN) return;
+    if (difftime(current_time, astronauts[index].finished_zap) < ZAP_COOLDOWN * CLOCKS_PER_SEC) return;
 
     astronauts[index].finished_zap = current_time;
 
-    // Implement zapping logic
-    // Check for alien hits and update scores
-    // Stun other astronauts in the line of fire
+    // Update game_field with the laser representation
+    if (astronauts[index].move_type == 'H') { // Horizontal zap
+        int pos = astronauts[index].x;
+        for (int i = 0; i < FIELD_SIZE; i++) {
+            if (state.game_field[pos][i] != ' ') continue;
+            state.game_field[pos][i] = '-';
+        }
+    } else if (astronauts[index].move_type == 'V') { // Vertical zap
+        int pos = astronauts[index].y;
+        for (int i = 0; i < FIELD_SIZE; i++) {
+            if (state.game_field[i][pos] != ' ') continue;
+            state.game_field[i][pos] = '|';
+        }
+    }
+
+    astronauts[index].zap_active = 1;
 }
 
 void handleAstronautDisconnect(char id) {
@@ -232,13 +291,7 @@ void processMessage(void *socket) {
     char id = validateMessage(&message);
 
     if (message.msg_type == 0) {
-        char id = handleAstronautConnect(socket);
-        astronaut_connect con_reply;
-        con_reply.id = id;
-        con_reply.code = random();
-        int index = findAstronautIndex(id);
-        astronauts[index].code = con_reply.code;
-        zmq_send(socket, &con_reply, sizeof(astronaut_connect), 0);
+        handleAstronautConnect(socket);
         return;
     }
 
@@ -289,7 +342,7 @@ int main() {
         processMessage(responder_interaction);
         updateGameState();
         printGameField(&state);
-        sendGameState(publisher_display);
+        // sendGameState(publisher_display);
     }
 
     zmq_close(responder_interaction);
