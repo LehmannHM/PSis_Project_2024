@@ -34,8 +34,13 @@ typedef struct {
 game_state state;
 Astronaut astronauts[MAX_PLAYERS];
 int astronaut_count = 0;
+char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 
+<<<<<<< HEAD
 clock_t last_alien_move;
+=======
+time_t last_alien_move;         // for what??
+>>>>>>> 0df3a37277666dbe78e0fae6d642f5b748ccaf1e
 
 void initializeGame() {
     // Initialize the game field to empty spaces
@@ -72,7 +77,7 @@ void updateGameState() {
     time(&current_time);
 
     // Add seconds 
-    if (current_time > last_alien_move + 1) {
+    if (current_time > last_alien_move + 1) {         // don't know if i agree
         // moveAliens();
         last_alien_move = current_time;
     }
@@ -135,6 +140,15 @@ void updateGameState() {
     }
 
 }
+
+//----------------------------------------------------------------------------------------
+void sendGameState_2(void *socket) {
+
+
+    //zmq_send(socket, "1", strlen("1"),ZMQ_SNDMORE );
+    zmq_send(socket, &state, sizeof(state), 0);
+}
+//----------------------------------------------------------------------------------------
 
 char validateMessage(astronaut_client *message) {
     if (message->msg_type < 0 || message->msg_type > 3) return 0;
@@ -288,12 +302,14 @@ void processMessage(void *socket) {
         return;
     }
 
-    char id = validateMessage(&message);
+        
 
     if (message.msg_type == 0) {
         handleAstronautConnect(socket);
         return;
     }
+
+    char id = validateMessage(&message);
 
     if (id == 0) return;
 
@@ -312,13 +328,34 @@ void processMessage(void *socket) {
     zmq_send(socket, &state.astronaut_scores, sizeof(state.astronaut_scores), 0);
 }
 
-void printGameField(game_state *state) {
+void printGameField(game_state *state,WINDOW * my_win,WINDOW * my_win_2) {
+
     for (int i = 0; i < FIELD_SIZE; i++) {
         for (int j = 0; j < FIELD_SIZE; j++) {
-            printf("%c ", state->game_field[i][j]);
-        }
-        printf("\n");
-    }
+            //printf("%c ", state->game_field[i][j]);
+            wmove(my_win, j, i);
+            waddch(my_win,state->game_field[i][j]| A_BOLD);
+        }}
+        //printf("\n");
+
+        // update score screen 
+        mvwprintw(my_win_2, 1, 1, "SCORE");
+    
+        for (int i = 0; i < MAX_PLAYERS; i++){
+
+            mvwprintw(my_win_2, i+2, 1, "%c - %d",letters[i], state->astronaut_scores[i]);
+                      
+            
+        } 
+
+        box(my_win, 0 , 0);
+        wrefresh(my_win);
+        wrefresh(my_win_2);
+
+
+
+
+    
 }
 
 int main() {
@@ -336,14 +373,34 @@ int main() {
     int rc_display = zmq_bind(publisher_display, DISPLAY_ADDRESS);
     // assert(rc_display == 0);
 
+    // start variables
     initializeGame();
+
+    // lncurses 
+    initscr();		    	
+	cbreak();				
+    keypad(stdscr, TRUE);   
+	noecho();			    
+    /* creates a window and draws a border */
+    WINDOW * my_win = newwin(FIELD_SIZE, FIELD_SIZE, 0, 0);
+    WINDOW * my_win_2 = newwin(15, 30, 0, FIELD_SIZE+2);
+    box(my_win_2, 0 , 0);	
+	wrefresh(my_win);
 
     while (1) {
         processMessage(responder_interaction);
         updateGameState();
+<<<<<<< HEAD
         printGameField(&state);
         // sendGameState(publisher_display);
+=======
+        printGameField(&state,my_win,my_win_2);
+        //sendGameState(publisher_display);
+        sendGameState_2(publisher_display);
+>>>>>>> 0df3a37277666dbe78e0fae6d642f5b748ccaf1e
     }
+
+    endwin();			/* End curses mode		  */
 
     zmq_close(responder_interaction);
     zmq_close(publisher_display);
