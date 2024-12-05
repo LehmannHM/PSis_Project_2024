@@ -24,6 +24,7 @@ typedef struct {
     int zap_active;
     char move_type;
     int code;
+    int connect;
 } Astronaut;
 
 typedef struct {
@@ -38,6 +39,89 @@ char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 double time_diff_ms(struct timespec start, struct timespec end) {
     double result = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     return result;
+}
+
+void initialize_astronauts(){     // can also replace austronaut when it gets disconnected
+ 
+    if (astronauts[0].connect == 0){
+       
+        astronauts[0].id = 'A';
+        astronauts[0].move_type = 'V';
+        astronauts[0].x = 1;
+        astronauts[0].y = FIELD_SIZE/2;
+        astronauts[0].score = 0;
+   
+        }
+ 
+    if (astronauts[1].connect == 0){
+ 
+        astronauts[1].id = 'B';
+        astronauts[1].move_type = 'V';
+        astronauts[1].x = FIELD_SIZE-2;
+        astronauts[1].y = FIELD_SIZE/2;
+        astronauts[1].score = 0;
+   
+        }
+ 
+    if (astronauts[2].connect == 0){ // new
+ 
+        astronauts[2].id = 'C';
+        astronauts[2].move_type = 'H';
+        astronauts[2].x = FIELD_SIZE/2;
+        astronauts[2].y = 1;
+        astronauts[2].score = 0;
+   
+        }
+ 
+    if (astronauts[3].connect == 0){
+ 
+        astronauts[3].id = 'D';
+        astronauts[3].move_type = 'H';
+        astronauts[3].x = FIELD_SIZE/2;
+        astronauts[3].y = FIELD_SIZE-1;
+        astronauts[3].score = 0;
+   
+        }
+ 
+    if (astronauts[4].connect == 0){ // new
+ 
+        astronauts[4].id = 'E';
+        astronauts[4].move_type = 'V';
+        astronauts[4].x = 0;
+        astronauts[4].y = FIELD_SIZE/2;
+        astronauts[4].score = 0;
+   
+        }
+ 
+    if (astronauts[5].connect == 0){
+ 
+        astronauts[5].id = 'F';
+        astronauts[5].move_type = 'V';
+        astronauts[5].x = FIELD_SIZE-2;
+        astronauts[5].y = FIELD_SIZE/2;
+        astronauts[5].score = 0;
+   
+        }
+ 
+    if (astronauts[6].connect == 0){ // new
+ 
+        astronauts[6].id = 'G';
+        astronauts[6].move_type = 'H';
+        astronauts[6].x = FIELD_SIZE/2;
+        astronauts[6].y = 0;
+        astronauts[6].score = 0;
+   
+        }
+ 
+    if (astronauts[7].connect == 0){
+ 
+    astronauts[7].id = 'H';
+    astronauts[7].move_type = 'V';
+    astronauts[7].x = FIELD_SIZE/2;
+    astronauts[7].y = FIELD_SIZE-1;
+    astronauts[7].score = 0;
+
+    }
 }
 
 void initializeGame() {
@@ -61,6 +145,8 @@ void initializeGame() {
 
         state.game_field[x][y] = '*'; // Place an alien
     }
+
+    initialize_astronauts();
 }
 
 int findAstronautIndex(char id) {
@@ -144,14 +230,14 @@ void updateGameState() {
             if (astronaut->move_type == 'H') { 
                 for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
                     if (state.game_field[start_x][j] == '*') { 
-                        state.game_field[start_x][j] = ' '; // Remove alien from field
+                        state.game_field[start_x][j] = '|'; // Remove alien from field
                         (*astronaut->score)++; 
                     }
                 }
             } else if (astronaut->move_type == 'V') { 
                 for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
                     if (state.game_field[j][start_y] == '*') { 
-                        state.game_field[j][start_y] = ' '; 
+                        state.game_field[j][start_y] = '-'; 
                         (*astronaut->score)++; 
                     }
                 }
@@ -207,6 +293,8 @@ void moveAustronautInZone(Astronaut* astronaut, bool delete) {
     }
 }
 
+
+
 void handleAstronautConnect(void *client_socket) {
     astronaut_connect con_reply;
     if (astronaut_count >= MAX_PLAYERS) {
@@ -225,19 +313,19 @@ void handleAstronautConnect(void *client_socket) {
     astronauts[astronaut_count].finished_stunned = current_time;
 
     //Initialize Position from ID
-    int middle = 10;
-    if (astronaut_count % 2 == 0) {
-        astronauts[astronaut_count].move_type = 'V';
-        astronauts[astronaut_count].x = 0;
-        astronauts[astronaut_count].y = middle;
-    } else {
-        // astronauts[astronaut_count].move_type = 'H';
-        // astronauts[astronaut_count].x = middle;
-        // astronauts[astronaut_count].y = 0;
-        astronauts[astronaut_count].move_type = 'V';
-        astronauts[astronaut_count].x = FIELD_SIZE - 2;
-        astronauts[astronaut_count].y = middle;
-    }
+    // int middle = 10;
+    // if (astronaut_count % 2 == 0) {
+    //     astronauts[astronaut_count].move_type = 'V';
+    //     astronauts[astronaut_count].x = 0;
+    //     astronauts[astronaut_count].y = middle;
+    // } else {
+    //     // astronauts[astronaut_count].move_type = 'H';
+    //     // astronauts[astronaut_count].x = middle;
+    //     // astronauts[astronaut_count].y = 0;
+    //     astronauts[astronaut_count].move_type = 'V';
+    //     astronauts[astronaut_count].x = FIELD_SIZE - 2;
+    //     astronauts[astronaut_count].y = middle;
+    // }
     moveAustronautInZone(&astronauts[astronaut_count], false);
     
     con_reply.id = id;
@@ -294,7 +382,10 @@ void handleAstronautMovement(char id, direction_t direction) {
     }
 
     moveAustronautInZone(astronaut, false);
-    drawLaserPath(astronaut);
+
+    if (time_diff_ms(current_time, astronaut->finished_zap) >= 0) {
+        drawLaserPath(astronaut);
+    }
 }
 
 void handleAstronautZap(char id) {
@@ -339,9 +430,11 @@ void handleAstronautDisconnect(char id) {
 
     // Remove astronaut from the game
     // TODO: this will move the following astronauts but this may not be wanted
-    for (int i = index; i < astronaut_count - 1; i++) {
-        astronauts[i] = astronauts[i + 1];
-    }
+    // for (int i = index; i < astronaut_count - 1; i++) {
+    //     astronauts[i] = astronauts[i + 1];
+    // }
+    initialize_astronauts();
+
     astronaut_count--;
     moveAustronautInZone(&astronauts[astronaut_count], true);
 }

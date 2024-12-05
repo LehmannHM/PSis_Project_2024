@@ -15,7 +15,7 @@ typedef enum direction_t {UP, DOWN, LEFT, RIGHT} direction_t;
 typedef struct astronaut_client {   
     int msg_type; /* 0 - connect   1 - move  2 - zap  3 - disconnect*/
     char id;                                 
-    direction_t direction ; // CAN be USED for the project
+    direction_t direction;
     // int connection; // here we can verify if the the player disconnected when it's equal to zero
     int code;  // need code (int)
 } astronaut_client;

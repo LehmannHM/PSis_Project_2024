@@ -75,7 +75,7 @@ int main() {
 
     // Disconnect
     m.msg_type = 3;
-    zmq_send(requester, &m, 2, 0);
+    zmq_send(requester, &m, sizeof(m), 0);
     zmq_recv(requester, NULL, 0, 0);
 
     // Cleanup
