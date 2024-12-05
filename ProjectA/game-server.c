@@ -70,6 +70,38 @@ int findAstronautIndex(char id) {
     return -1;
 }
 
+void clearLaserPath(Astronaut *astronaut) {
+    if (astronaut->move_type == 'H') { 
+        for (int j = 0; j < FIELD_SIZE; j++) {
+            if (state.game_field[astronaut->x][j] == '|') {
+                state.game_field[astronaut->x][j] = ' '; // Clear horizontal laser
+            }
+        }
+    } else if (astronaut->move_type == 'V') { 
+        for (int i = 0; i < FIELD_SIZE; i++) {
+            if (state.game_field[i][astronaut->y] == '-') {
+                state.game_field[i][astronaut->y] = ' '; // Clear vertical laser
+            }
+        }
+    }
+}
+
+void drawLaserPath(Astronaut *astronaut) {
+    if (!astronaut->zap_active) return;
+
+    if (astronaut->move_type == 'H') { 
+        for (int j = 0; j < FIELD_SIZE; j++) {
+            if (state.game_field[astronaut->x][j] != ' ') continue;
+            state.game_field[astronaut->x][j] = '|'; // Draw horizontal laser
+        }
+    } else if (astronaut->move_type == 'V') { 
+        for (int i = 0; i < FIELD_SIZE; i++) {
+            if (state.game_field[i][astronaut->y] != ' ') continue;
+            state.game_field[i][astronaut->y] = '-'; // Draw vertical laser
+        }
+    }
+}
+
 void updateGameState() {
     // clock_t current_time = clock();
     struct timespec current_time;
@@ -77,51 +109,59 @@ void updateGameState() {
 
     // Update laser rays
     for (int i = 0; i < astronaut_count; i++) {
-        if (astronauts[i].zap_active) {
-            // Check if the laser duration has expired
-            if (time_diff_ms(current_time, astronauts[i].finished_zap) < 0) {
-                astronauts[i].zap_active = 0; // Deactivate zap
-                
-                // Clear the laser from game field
-                if (astronauts[i].move_type == 'H') { 
-                    for (int j = 0; j < FIELD_SIZE; j++) {
-                        if (state.game_field[astronauts[i].x][j] != '|') continue;
-                        state.game_field[astronauts[i].x][j] = ' '; // Clear horizontal laser
-                    }
-                } else if (astronauts[i].move_type == 'V') { 
-                    for (int j = 0; j < FIELD_SIZE; j++) {
-                        if (state.game_field[j][astronauts[i].y] != '-') continue;
-                        state.game_field[j][astronauts[i].y] = ' '; // Clear vertical laser
-                    }
-                }
+        Astronaut *astronaut = &astronauts[i];
+
+        if (astronaut->zap_active) {
+            if (time_diff_ms(current_time, astronaut->finished_zap) < 0) {
+                clearLaserPath(astronaut);
+                astronaut->zap_active = 0;
                 continue;
             }
 
-            // Check for alien hits in the zap's path
-            int start_x = astronauts[i].x;
-            int start_y = astronauts[i].y;
+            // Check if the laser duration has expired
+            // if (time_diff_ms(current_time, astronauts[i].finished_zap) < 0) {
+            //     astronaut->zap_active = 0; // Deactivate zap
+                
+            //     // Clear the laser from game field
+            //     if (astronaut->move_type == 'H') { 
+            //         for (int j = 0; j < FIELD_SIZE; j++) {
+            //             if (state.game_field[astronaut->x][j] != '|') continue;
+            //             state.game_field[astronaut->x][j] = ' '; // Clear horizontal laser
+            //         }
+            //     } else if (astronaut->move_type == 'V') { 
+            //         for (int j = 0; j < FIELD_SIZE; j++) {
+            //             if (state.game_field[j][astronaut->y] != '-') continue;
+            //             state.game_field[j][astronaut->y] = ' '; // Clear vertical laser
+            //         }
+            //     }
+            //     continue;
+            // }
 
-            if (astronauts[i].move_type == 'H') { 
+            // Check for alien hits in the zap's path
+            int start_x = astronaut->x;
+            int start_y = astronaut->y;
+
+            if (astronaut->move_type == 'H') { 
                 for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
                     if (state.game_field[start_x][j] == '*') { 
                         state.game_field[start_x][j] = ' '; // Remove alien from field
-                        (*astronauts[i].score)++; 
+                        (*astronaut->score)++; 
                     }
                 }
-            } else if (astronauts[i].move_type == 'V') { 
+            } else if (astronaut->move_type == 'V') { 
                 for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
                     if (state.game_field[j][start_y] == '*') { 
                         state.game_field[j][start_y] = ' '; 
-                        (*astronauts[i].score)++; 
+                        (*astronaut->score)++; 
                     }
                 }
             }
 
             // Check for other astronauts in the line of fire
             for (int j = 0; j < astronaut_count; j++) {
-                if (astronauts[j].id != astronauts[i].id) { 
-                    if ((astronauts[i].move_type == 'H' && astronauts[i].x == astronauts[j].x) ||
-                        (astronauts[i].move_type == 'V' && astronauts[i].y == astronauts[j].y)) {
+                if (astronauts[j].id != astronaut->id) { 
+                    if ((astronaut->move_type == 'H' && astronaut->x == astronauts[j].x) ||
+                        (astronaut->move_type == 'V' && astronauts[i].y == astronauts[j].y)) {
                         astronauts[j].finished_stunned = current_time;
                         astronauts[j].finished_stunned.tv_sec += STUN_DURATION;
                     }
@@ -211,15 +251,19 @@ void handleAstronautConnect(void *client_socket) {
 
 void handleAstronautMovement(char id, direction_t direction) {
     int index = findAstronautIndex(id);
+    Astronaut *astronaut = &astronauts[index];
+
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
-    double test = time_diff_ms(current_time, astronauts[index].finished_stunned);
+    double test = time_diff_ms(current_time, astronaut->finished_stunned);
     if (index == -1 || test > 0.0) return;
+    
+    clearLaserPath(astronaut);
 
-    int new_x = astronauts[index].x;
-    int new_y = astronauts[index].y;
+    int new_x = astronaut->x;
+    int new_y = astronaut->y;
 
-    if (astronauts[index].move_type == 'V') { // Vertical movement
+    if (astronaut->move_type == 'V') { // Vertical movement
         switch(direction) {
             case DOWN: // Move down
                 new_y++;
@@ -228,7 +272,7 @@ void handleAstronautMovement(char id, direction_t direction) {
                 new_y--;
                 break;
         }
-    } else if (astronauts[index].move_type == 'H') { // Horizontal movement
+    } else if (astronaut->move_type == 'H') { // Horizontal movement
         switch(direction) {
             case RIGHT: // Move right
                 new_x++;
@@ -241,15 +285,16 @@ void handleAstronautMovement(char id, direction_t direction) {
 
     // Check bounds for vertical movement
     if (new_y >= ASTRONAUT_MIN && new_y <= ASTRONAUT_MAX) {
-        astronauts[index].y = new_y;
+        astronaut->y = new_y;
     }
 
     // Check bounds for horizontal movement
     if (new_x >= ASTRONAUT_MIN && new_x <= ASTRONAUT_MAX) {
-        astronauts[index].x = new_x;
+        astronaut->x = new_x;
     }
 
-    moveAustronautInZone(&astronauts[index], false);
+    moveAustronautInZone(astronaut, false);
+    drawLaserPath(astronaut);
 }
 
 void handleAstronautZap(char id) {
