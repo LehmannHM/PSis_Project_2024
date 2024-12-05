@@ -15,7 +15,6 @@
 
 int main ()
 {
-
     const char *empty = "";
 
     // alterar cenas aqui
@@ -27,7 +26,6 @@ int main ()
     zmq_setsockopt (subscriber, ZMQ_SUBSCRIBE,empty, 0);  
     //char password[] = "1";
     //zmq_setsockopt (subscriber, ZMQ_SUBSCRIBE,password, strlen(password));
-
 
 	initscr();		    	
 	cbreak();				
@@ -58,9 +56,7 @@ int main ()
         // receive message
 
         //zmq_recv (subscriber, &pass_recv, strlen(password), 0);
-        
         zmq_recv (subscriber, &current_state, sizeof(current_state), 0);  // msg type
-
 
         // update game screen
         for (i = 0; i < FIELD_SIZE; i++) {
@@ -85,8 +81,6 @@ int main ()
         box(my_win, 0 , 0);
         wrefresh(my_win);
         wrefresh(my_win_2); 
-         		
-   
     }
 
   	endwin();			/* End curses mode		  */

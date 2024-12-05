@@ -9,19 +9,18 @@
 #include "common.h"
 
 #define MAX_PLAYERS 8
-#define FIELD_SIZE 20
 #define STUN_DURATION 10
 #define ZAP_COOLDOWN 3
 
 #define ASTRONAUT_MIN 2
-#define ASTRONAUT_MAX FIELD_SIZE - 2
+#define ASTRONAUT_MAX (FIELD_SIZE - 2)
 
 typedef struct {
     char id;
     int x, y;
-    int score;
-    clock_t last_stunned; // Last stunned time
-    clock_t finished_zap; // Last zap time
+    int *score;
+    struct timespec finished_stunned; // Last stunned time
+    struct timespec finished_zap; // Last zap time
     int zap_active;
     char move_type;
     int code;
@@ -36,11 +35,10 @@ Astronaut astronauts[MAX_PLAYERS];
 int astronaut_count = 0;
 char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 
-<<<<<<< HEAD
-clock_t last_alien_move;
-=======
-time_t last_alien_move;         // for what??
->>>>>>> 0df3a37277666dbe78e0fae6d642f5b748ccaf1e
+double time_diff_ms(struct timespec start, struct timespec end) {
+    double result = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
+    return result;
+}
 
 void initializeGame() {
     // Initialize the game field to empty spaces
@@ -73,29 +71,26 @@ int findAstronautIndex(char id) {
 }
 
 void updateGameState() {
-    clock_t current_time;
-    time(&current_time);
-
-    // Add seconds 
-    if (current_time > last_alien_move + 1) {         // don't know if i agree
-        // moveAliens();
-        last_alien_move = current_time;
-    }
+    // clock_t current_time = clock();
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
 
     // Update laser rays
     for (int i = 0; i < astronaut_count; i++) {
         if (astronauts[i].zap_active) {
             // Check if the laser duration has expired
-            if (difftime(current_time, astronauts[i].finished_zap) >= 0.5 * CLOCKS_PER_SEC) {
+            if (time_diff_ms(current_time, astronauts[i].finished_zap) < 0) {
                 astronauts[i].zap_active = 0; // Deactivate zap
                 
                 // Clear the laser from game field
                 if (astronauts[i].move_type == 'H') { 
                     for (int j = 0; j < FIELD_SIZE; j++) {
+                        if (state.game_field[astronauts[i].x][j] != '|') continue;
                         state.game_field[astronauts[i].x][j] = ' '; // Clear horizontal laser
                     }
                 } else if (astronauts[i].move_type == 'V') { 
                     for (int j = 0; j < FIELD_SIZE; j++) {
+                        if (state.game_field[j][astronauts[i].y] != '-') continue;
                         state.game_field[j][astronauts[i].y] = ' '; // Clear vertical laser
                     }
                 }
@@ -110,16 +105,14 @@ void updateGameState() {
                 for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
                     if (state.game_field[start_x][j] == '*') { 
                         state.game_field[start_x][j] = ' '; // Remove alien from field
-                        astronauts[i].score++; 
-                        // printf("Alien hit by %c! Score: %d\n", astronauts[i].id, astronauts[i].score);
+                        (*astronauts[i].score)++; 
                     }
                 }
             } else if (astronauts[i].move_type == 'V') { 
                 for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
                     if (state.game_field[j][start_y] == '*') { 
                         state.game_field[j][start_y] = ' '; 
-                        astronauts[i].score++; 
-                        // printf("Alien hit by %c! Score: %d\n", astronauts[i].id, astronauts[i].score);
+                        (*astronauts[i].score)++; 
                     }
                 }
             }
@@ -127,12 +120,10 @@ void updateGameState() {
             // Check for other astronauts in the line of fire
             for (int j = 0; j < astronaut_count; j++) {
                 if (astronauts[j].id != astronauts[i].id) { 
-                    if ((astronauts[i].move_type == 'H' && astronauts[j].y >= ASTRONAUT_MIN && astronauts[j].y <= ASTRONAUT_MAX &&
-                         state.game_field[astronauts[i].x][astronauts[j].y] == '-') || 
-                        (astronauts[i].move_type == 'V' && astronauts[j].x >= ASTRONAUT_MIN && astronauts[j].x <= ASTRONAUT_MAX &&
-                         state.game_field[astronauts[j].x][astronauts[i].y] == '|')) {
-                        astronauts[j].last_stunned = current_time; 
-                        printf("Astronaut %c stunned by %c!\n", astronauts[j].id, astronauts[i].id);
+                    if ((astronauts[i].move_type == 'H' && astronauts[i].x == astronauts[j].x) ||
+                        (astronauts[i].move_type == 'V' && astronauts[i].y == astronauts[j].y)) {
+                        astronauts[j].finished_stunned = current_time;
+                        astronauts[j].finished_stunned.tv_sec += STUN_DURATION;
                     }
                 }
             }
@@ -141,14 +132,10 @@ void updateGameState() {
 
 }
 
-//----------------------------------------------------------------------------------------
-void sendGameState_2(void *socket) {
-
-
+void sendGameState(void *socket) {
     //zmq_send(socket, "1", strlen("1"),ZMQ_SNDMORE );
     zmq_send(socket, &state, sizeof(state), 0);
 }
-//----------------------------------------------------------------------------------------
 
 char validateMessage(astronaut_client *message) {
     if (message->msg_type < 0 || message->msg_type > 3) return 0;
@@ -190,17 +177,26 @@ void handleAstronautConnect(void *client_socket) {
     }
     char id = 'A' + astronaut_count;
     astronauts[astronaut_count].id = id;
-    
+    astronauts[astronaut_count].score = &state.astronaut_scores[astronaut_count];
+    *astronauts[astronaut_count].score = 0;
+
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    astronauts[astronaut_count].finished_stunned = current_time;
+
     //Initialize Position from ID
     int middle = 10;
     if (astronaut_count % 2 == 0) {
         astronauts[astronaut_count].move_type = 'V';
-        astronauts[astronaut_count].x = 1;
+        astronauts[astronaut_count].x = 0;
         astronauts[astronaut_count].y = middle;
     } else {
-        astronauts[astronaut_count].move_type = 'H';
-        astronauts[astronaut_count].x = middle;
-        astronauts[astronaut_count].y = 1;
+        // astronauts[astronaut_count].move_type = 'H';
+        // astronauts[astronaut_count].x = middle;
+        // astronauts[astronaut_count].y = 0;
+        astronauts[astronaut_count].move_type = 'V';
+        astronauts[astronaut_count].x = FIELD_SIZE - 2;
+        astronauts[astronaut_count].y = middle;
     }
     moveAustronautInZone(&astronauts[astronaut_count], false);
     
@@ -215,8 +211,10 @@ void handleAstronautConnect(void *client_socket) {
 
 void handleAstronautMovement(char id, direction_t direction) {
     int index = findAstronautIndex(id);
-    clock_t current_time = clock();
-    if (index == -1 || difftime(current_time, astronauts[index].last_stunned) < STUN_DURATION) return;
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    double test = time_diff_ms(current_time, astronauts[index].finished_stunned);
+    if (index == -1 || test > 0.0) return;
 
     int new_x = astronauts[index].x;
     int new_y = astronauts[index].y;
@@ -243,12 +241,12 @@ void handleAstronautMovement(char id, direction_t direction) {
 
     // Check bounds for vertical movement
     if (new_y >= ASTRONAUT_MIN && new_y <= ASTRONAUT_MAX) {
-        astronauts[index].y = new_y; // Update position if within bounds
+        astronauts[index].y = new_y;
     }
 
     // Check bounds for horizontal movement
     if (new_x >= ASTRONAUT_MIN && new_x <= ASTRONAUT_MAX) {
-        astronauts[index].x = new_x; // Update position if within bounds
+        astronauts[index].x = new_x;
     }
 
     moveAustronautInZone(&astronauts[index], false);
@@ -256,25 +254,34 @@ void handleAstronautMovement(char id, direction_t direction) {
 
 void handleAstronautZap(char id) {
     int index = findAstronautIndex(id);
-    if (index == -1 || astronauts[index].last_stunned > 0) return;
 
-    clock_t current_time = clock() * CLOCKS_PER_SEC;
-    if (difftime(current_time, astronauts[index].finished_zap) < ZAP_COOLDOWN * CLOCKS_PER_SEC) return;
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+
+    if (index == -1 || time_diff_ms(current_time, astronauts[index].finished_stunned) > 0) return;
+    
+    if (time_diff_ms(astronauts[index].finished_zap, current_time) < ZAP_COOLDOWN * 1000) return;
 
     astronauts[index].finished_zap = current_time;
+    astronauts[index].finished_zap = current_time;
+    astronauts[index].finished_zap.tv_nsec += 500000000; // Add 500ms
+    if (astronauts[index].finished_zap.tv_nsec >= 1000000000) {
+        astronauts[index].finished_zap.tv_sec++;
+        astronauts[index].finished_zap.tv_nsec -= 1000000000;
+    }
 
     // Update game_field with the laser representation
     if (astronauts[index].move_type == 'H') { // Horizontal zap
         int pos = astronauts[index].x;
         for (int i = 0; i < FIELD_SIZE; i++) {
             if (state.game_field[pos][i] != ' ') continue;
-            state.game_field[pos][i] = '-';
+            state.game_field[pos][i] = '|';
         }
     } else if (astronauts[index].move_type == 'V') { // Vertical zap
         int pos = astronauts[index].y;
         for (int i = 0; i < FIELD_SIZE; i++) {
             if (state.game_field[i][pos] != ' ') continue;
-            state.game_field[i][pos] = '|';
+            state.game_field[i][pos] = '-';
         }
     }
 
@@ -302,8 +309,6 @@ void processMessage(void *socket) {
         return;
     }
 
-        
-
     if (message.msg_type == 0) {
         handleAstronautConnect(socket);
         return;
@@ -330,11 +335,11 @@ void processMessage(void *socket) {
 
 void printGameField(game_state *state,WINDOW * my_win,WINDOW * my_win_2) {
 
-    for (int i = 0; i < FIELD_SIZE; i++) {
-        for (int j = 0; j < FIELD_SIZE; j++) {
+    for (int i = 1; i < FIELD_SIZE+1; i++) {
+        for (int j = 1; j < FIELD_SIZE+1; j++) {
             //printf("%c ", state->game_field[i][j]);
             wmove(my_win, j, i);
-            waddch(my_win,state->game_field[i][j]| A_BOLD);
+            waddch(my_win,state->game_field[i-1][j-1]| A_BOLD);
         }}
         //printf("\n");
 
@@ -342,20 +347,12 @@ void printGameField(game_state *state,WINDOW * my_win,WINDOW * my_win_2) {
         mvwprintw(my_win_2, 1, 1, "SCORE");
     
         for (int i = 0; i < MAX_PLAYERS; i++){
-
             mvwprintw(my_win_2, i+2, 1, "%c - %d",letters[i], state->astronaut_scores[i]);
-                      
-            
         } 
 
         box(my_win, 0 , 0);
         wrefresh(my_win);
         wrefresh(my_win_2);
-
-
-
-
-    
 }
 
 int main() {
@@ -382,22 +379,16 @@ int main() {
     keypad(stdscr, TRUE);   
 	noecho();			    
     /* creates a window and draws a border */
-    WINDOW * my_win = newwin(FIELD_SIZE, FIELD_SIZE, 0, 0);
-    WINDOW * my_win_2 = newwin(15, 30, 0, FIELD_SIZE+2);
+    WINDOW * my_win = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 0, 0);
+    WINDOW * my_win_2 = newwin(15, 30, 0, FIELD_SIZE+4);
     box(my_win_2, 0 , 0);	
 	wrefresh(my_win);
 
     while (1) {
         processMessage(responder_interaction);
         updateGameState();
-<<<<<<< HEAD
-        printGameField(&state);
-        // sendGameState(publisher_display);
-=======
         printGameField(&state,my_win,my_win_2);
-        //sendGameState(publisher_display);
-        sendGameState_2(publisher_display);
->>>>>>> 0df3a37277666dbe78e0fae6d642f5b748ccaf1e
+        sendGameState(publisher_display);
     }
 
     endwin();			/* End curses mode		  */

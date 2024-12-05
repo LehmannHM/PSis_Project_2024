@@ -13,14 +13,14 @@ CFLAGS = -Wall -g
 LDFLAGS = -lzmq -lncurses
 
 # Source files with path
-SERVER_SRC = ./game-server.c
-CLIENT_SRC = ./astronaut-client.c
-DISPLAY_SRC = ./outer-space-display.c
+SERVER_SRC = ProjectA/game-server.c
+CLIENT_SRC = ProjectA/astronaut-client.c
+DISPLAY_SRC = ProjectA/outer-space-display.c
 
 # Executable names
-SERVER_EXE = ./game-server
-CLIENT_EXE = ./astronaut-client
-DISPLAY_EXE = ./outer-space-display
+SERVER_EXE = ProjectA/game-server
+CLIENT_EXE = ProjectA/astronaut-client
+DISPLAY_EXE = ProjectA/outer-space-display
 
 # Default target to build all executables
 all: $(SERVER_EXE) $(CLIENT_EXE) $(DISPLAY_EXE)
