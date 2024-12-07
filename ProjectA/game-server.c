@@ -123,14 +123,15 @@ void initialize_astronauts(){     // can also replace austronaut when it gets di
  
     if (astronauts[7].connect == 0){
  
-    astronauts[7].id = 'H';
-    astronauts[7].move_type = 'V';
-    astronauts[7].x = FIELD_SIZE/2;
-    astronauts[7].y = FIELD_SIZE-1;
-    astronauts[7].score = 0;
+        astronauts[7].id = 'H';
+        astronauts[7].move_type = 'V';
+        astronauts[7].x = FIELD_SIZE/2;
+        astronauts[7].y = FIELD_SIZE-1;
+        astronauts[7].score = 0;
 
     }
 }
+
 void generate_aliens(){
 
     pid_t pid = fork();  // Create a new process
@@ -140,9 +141,6 @@ void generate_aliens(){
         perror("Fork failed");
         exit(1); // Terminate child process
     } else if (pid == 0) {
-
-        //--
-
         void *context = zmq_ctx_new();
         void *requester = zmq_socket(context, ZMQ_REQ);
         // zmq_connect(requester, INTERACTION_ADDRESS);
@@ -150,7 +148,7 @@ void generate_aliens(){
             printf("Error connecting to server: %s\n", zmq_strerror(zmq_errno()));
         }
         
-        astronaut_client m;
+        interaction_message m;
         int code;
         // Connect to server
         m.msg_type = 4;
@@ -159,8 +157,8 @@ void generate_aliens(){
         }
 
         // Receive assigned letter
-        astronaut_connect connect_reply;  // have to
-        zmq_recv(requester, &connect_reply, sizeof(astronaut_connect), 0);
+        connect_message connect_reply;  // have to
+        zmq_recv(requester, &connect_reply, sizeof(connect_message), 0);
 
         code = connect_reply.code;
 
@@ -194,11 +192,9 @@ void generate_aliens(){
 
     } else {// parent process
     }
-
-
 }
 
-void initializeGame() {
+void initialize_game() {
     // Initialize the game field to empty spaces
     for (int i = 0; i < FIELD_SIZE; i++) {
         for (int j = 0; j < FIELD_SIZE; j++) {
@@ -206,48 +202,29 @@ void initializeGame() {
         }
     }
 
-    // Place aliens in the center of the game field
-    //srand(time(NULL));
-    
-
-    /*for (int i = 0; i < alien_count; i++) {
-        int x, y;
-        do {
-            x = rand() % (FIELD_SIZE - 4) + 2;
-            y = rand() % (FIELD_SIZE - 4) + 2;
-        } while (state.game_field[x][y] != ' '); // Ensure position is empty
-
-        state.game_field[x][y] = '*'; // Place an alien
-    }*/
-
     for (int i = 0; i < MAX_PLAYERS; i++) { // to initialize astronauts
-
         astronauts[i].connect = 0;
     } 
 
     for (int i = 0; i < alien_count; i++) { // to initialize aliens
-
         aliens[i].connect = 0;
     }
 
     initialize_astronauts();
 
     for (int i = 0; i < alien_count; i++) {
-
         generate_aliens();
     }
-
-     
 }
 
-int findAstronautIndex(char id) {
-    for (int i = 0; i < astronaut_count; i++) {
+int find_astronaut_index(char id) {
+    for (int i = 0; i < MAX_PLAYERS; i++) {
         if (astronauts[i].id == id) return i;
     }
     return -1;
 }
 
-void clearLaserPath(Astronaut *astronaut) {
+void clear_laser_path(Astronaut *astronaut) {
     if (astronaut->move_type == 'H') { 
         for (int j = 0; j < FIELD_SIZE; j++) {
             if (state.game_field[astronaut->x][j] == '|') {
@@ -263,7 +240,7 @@ void clearLaserPath(Astronaut *astronaut) {
     }
 }
 
-void drawLaserPath(Astronaut *astronaut) {
+void draw_laser_path(Astronaut *astronaut) {
     if (!astronaut->zap_active) return;
 
     if (astronaut->move_type == 'H') { 
@@ -279,9 +256,7 @@ void drawLaserPath(Astronaut *astronaut) {
     }
 }
 
-
 void updateGameState() {
-    // clock_t current_time = clock();
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
 
@@ -292,7 +267,7 @@ void updateGameState() {
         if (astronaut->zap_active && astronaut->connect) {
 
             if (time_diff_ms(current_time, astronaut->finished_zap) < 0) {
-                clearLaserPath(astronaut);
+                clear_laser_path(astronaut);
                 astronaut->zap_active = 0;
                 continue;
             }
@@ -300,7 +275,7 @@ void updateGameState() {
             // Check for alien hits in the zap's path   // refazer isto para aliens e não os desenhos....posso aproveitar deseenhos
             int start_x = astronaut->x;                 // aproveitar desenhos e fazer update de localização com função
             int start_y = astronaut->y;
-            //------------------------------------------------------------------------------ new
+
             for (int j = 0; j <= alien_count; j++) {
 
                 if (astronaut->move_type == 'H' && aliens[j].connect && aliens[j].x == start_x) {
@@ -319,30 +294,8 @@ void updateGameState() {
                 }
             }
 
-
-            //---------------------------------------------------------------------------
-            /*if (astronaut->move_type == 'H') { 
-                for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) {
-                    if (state.game_field[start_x][j] == '*') { 
-                        state.game_field[start_x][j] = '|'; // Remove alien from field
-                        // has to remove alien from struct
-                        
-                        // do a search alien function
-                        (*astronaut->score)++; 
-                    }
-                }
-            } else if (astronaut->move_type == 'V') { 
-                for (int j = ASTRONAUT_MIN; j <= ASTRONAUT_MAX; j++) { // do the same here
-                    if (state.game_field[j][start_y] == '*') { 
-                        state.game_field[j][start_y] = '-'; 
-                        (*astronaut->score)++; 
-                    }
-                }
-            }*/
-
             // Check for other astronauts in the line of fire
-
-            for (int j = 0; j < MAX_PLAYERS; j++) {   // i removed astronaut count becaus ewe can have asstronauts (A and H if other disconnects...)
+            for (int j = 0; j < MAX_PLAYERS; j++) {
                 if (astronauts[j].id != astronaut->id && astronaut[j].connect) { 
                     if ((astronaut->move_type == 'H' && astronaut->x == astronauts[j].x) ||
                         (astronaut->move_type == 'V' && astronauts[i].y == astronauts[j].y)) {
@@ -353,27 +306,28 @@ void updateGameState() {
             }
         }
     }
-
 }
 
-void sendGameState(void *socket) {
-    
-    zmq_send(socket, &state, sizeof(state), 0);
-}
-
-char validateMessage(astronaut_client *message) {     //------------check this (daniel)
+char validate_message(interaction_message *message) {     //------------check this (daniel)
     if (message->msg_type < 0 || message->msg_type > 3) return 0;
     if (message->id < 'A' || message->id > 'H') return 0;
-    int index = findAstronautIndex(message->id);
+    int index = find_astronaut_index(message->id);
     if (index < 0 || message->code != astronauts[index].code) return 0;
     return message->id;
 }
 
-void moveAustronautInField(int old_x, int old_y, int new_x, int new_y) {
+void move_astronaut_in_field(int old_x, int old_y, int new_x, int new_y) {
     if (old_x == new_x && old_y == new_y) return;
     state.game_field[new_x][new_y] = state.game_field[old_x][old_y];
     state.game_field[old_x][old_y] = ' ';
 }
+void move_astronaut(Astronaut *astronaut, int old_x, int old_y) {
+    if (old_x == astronaut->x && old_y == astronaut->y) return;
+    state.game_field[astronaut->x][astronaut->y] = astronaut->id;
+    if (old_x == -1 || old_y == -1) return;
+    state.game_field[old_x][old_y] = ' ';
+}
+
 
 void moveAustronautInZone(Astronaut* astronaut, bool delete) {
     if (astronaut->move_type == 'V') {
@@ -393,8 +347,8 @@ void moveAustronautInZone(Astronaut* astronaut, bool delete) {
 
 
 
-void handleAstronautConnect(void *client_socket) {   //-----check this daniel
-    astronaut_connect con_reply;
+void handle_astronaut_connect(void *client_socket) {   //-----check this daniel
+    connect_message con_reply;
     if (astronaut_count >= MAX_PLAYERS) {
         con_reply.id = 'Z';
         con_reply.code = -1;
@@ -404,53 +358,48 @@ void handleAstronautConnect(void *client_socket) {   //-----check this daniel
 
     // get index of first free astronaut
     int index = 0; 
-    for ( index=0; index <= MAX_PLAYERS; index++) {   // only need to delete where it was noo??
-            if (astronauts[index].connect == 0){
-                break;
-            }
+    for ( index=0; index <= MAX_PLAYERS; index++) {
+        if (astronauts[index].connect == 0){
+            break;
         }
+    }
+
+    Astronaut *astronaut = &astronauts[index];
 
     // set up
     char id = 'A' + index;
-    astronauts[index].id = id;
-    astronauts[index].score = &state.astronaut_scores[index];
-    *astronauts[index].score = 0;
-    astronauts[index].connect = 1;
+    astronaut->id = id;
+    astronaut->score = &state.astronaut_scores[index];
+    *astronaut->score = 0;
+    astronaut->connect = 1;
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
-    astronauts[index].finished_stunned = current_time;
+    astronaut->finished_stunned = current_time;
 
     // graphical interface
-    moveAustronautInZone(&astronauts[index], false);
-    
+    // moveAustronautInZone(&astronaut, false);
+    move_astronaut(astronaut, -1, -1);
+
     // reply 
     con_reply.id = id;
     con_reply.code = random();
-    astronauts[index].code = con_reply.code;
+    astronaut->code = con_reply.code;
     zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
     astronaut_count++;
-
-    return;
 }
 
 //----------------------------------------------------------- alien  functions
-void handleAlientMovement(astronaut_client message){  // if ther
+void handle_alien_movement(interaction_message message){
 
     int index = message.code;
     Alien *alien = &aliens[index];
 
-    //struct timespec current_time;
-    //clock_gettime(CLOCK_MONOTONIC, &current_time);
-    //double test = time_diff_ms(current_time, astronaut->finished_stunned);
-    //if (index == -1 || test > 0.0) return;
     if (index == -1) return;
-    //clearLaserPath(astronaut);   
 
     int new_x = alien->x;
     int new_y = alien->y;
 
-    // old position clear 
-    
+    // old position clear    
     state.game_field[alien->x][alien->y] = ' ';
 
     // check if there was another alien there
@@ -463,10 +412,6 @@ void handleAlientMovement(astronaut_client message){  // if ther
                         
     }
 
-    
-    
-
-    
     switch(message.direction) {
         case DOWN: // Move down
             new_y++;
@@ -485,21 +430,16 @@ void handleAlientMovement(astronaut_client message){  // if ther
     // set new position
 
     if (new_x <FIELD_SIZE - 3 && new_y < FIELD_SIZE-3 && new_x > 2 && new_y > 2){
-    alien->y = new_y;
-    alien->x = new_x;
+        alien->y = new_y;
+        alien->x = new_x;
     }
     
     state.game_field[alien->x][alien->y] = '*';
-
-    //if (time_diff_ms(current_time, astronaut->finished_zap) >= 0) {  // can remove right????
-      //  drawLaserPath(astronaut);
-    //
-
 }
 
 void handleAlienConnect(void *client_socket){
 
-    astronaut_connect con_reply;
+    connect_message con_reply;
     int i;
 
     for (i = 0; i < ALIEN_MAX; i++) {
@@ -514,23 +454,21 @@ void handleAlienConnect(void *client_socket){
     }
     
     // Generate random number between for position
-    aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;//(rand() % (FIELD_SIZE - 3 + 1)) + 3;  // verify these limits
-    aliens[i].y = rand() % (FIELD_SIZE - 4) + 2;//(rand() % (FIELD_SIZE - 3 + 1)) + 3;
-
+    aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;  // verify these limits
+    aliens[i].y = rand() % (FIELD_SIZE - 4) + 2;
 
     state.game_field[aliens[i].x][aliens[i].y] = '*';
     
     con_reply.id = i;
     con_reply.code = i;
-    //astronauts[astronaut_count].code = con_reply.code;
     zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
     
     return;
 }
 //------------------------------------------------------------------
 
-void handleAstronautMovement(char id, direction_t direction) {
-    int index = findAstronautIndex(id);
+void handle_astronaut_movement(char id, direction_t direction) {
+    int index = find_astronaut_index(id);
     Astronaut *astronaut = &astronauts[index];
 
     struct timespec current_time;
@@ -538,10 +476,10 @@ void handleAstronautMovement(char id, direction_t direction) {
     double test = time_diff_ms(current_time, astronaut->finished_stunned);
     if (index == -1 || test > 0.0) return;
     
-    clearLaserPath(astronaut);
+    clear_laser_path(astronaut);
 
-    int new_x = astronaut->x;
-    int new_y = astronaut->y;
+    int new_x, old_x = astronaut->x;
+    int new_y, old_y = astronaut->y;
 
     if (astronaut->move_type == 'V') { // Vertical movement
         switch(direction) {
@@ -573,15 +511,16 @@ void handleAstronautMovement(char id, direction_t direction) {
         astronaut->x = new_x;
     }
 
-    moveAustronautInZone(astronaut, false);
+    // moveAustronautInZone(astronaut, false);
+    move_astronaut(astronaut, old_x, old_y);
 
     if (time_diff_ms(current_time, astronaut->finished_zap) >= 0) {
-        drawLaserPath(astronaut);
+        draw_laser_path(astronaut);
     }
 }
 
-void handleAstronautZap(char id) {
-    int index = findAstronautIndex(id);
+void handle_astronaut_zap(char id) {
+    int index = find_astronaut_index(id);
 
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
@@ -616,39 +555,24 @@ void handleAstronautZap(char id) {
     astronauts[index].zap_active = 1;
 }
 
-void handleAstronautDisconnect(char id) {
-    int index = findAstronautIndex(id);
+void handle_astronaut_disconnect(char id) {
+    int index = find_astronaut_index(id);
     if (index == -1) return;
 
     astronauts[index].connect = 0;
 
-    // Remove astronaut from the game
-    // TODO: this will move the following astronauts but this may not be wanted
-    // for (int i = index; i < astronaut_count - 1; i++) {
-    //     astronauts[i] = astronauts[i + 1];
-    // }
+    state.game_field[astronauts[index].x][astronauts[index].y] = ' ';
+
+    // Remove astronaut
     initialize_astronauts();
 
     astronaut_count--;
-    moveAustronautInZone(&astronauts[index], true);
 }
 
-void Check_Alien_hit (){//--------------------------------------------delete?
-  
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-            
-        } 
-
-
-}
-
-void processMessage(void *socket) {//----------------------------------------- updates here
-
-    astronaut_client message;
+void process_message(void *socket) {
+    interaction_message message;
 
     int size = zmq_recv(socket, &message, sizeof(message), 0);
-
-
 
     if (size == -1) {
         printf("Error receiving message: %s\n", zmq_strerror(zmq_errno()));
@@ -656,7 +580,7 @@ void processMessage(void *socket) {//----------------------------------------- u
     }
     
     if (message.msg_type == 0) {
-        handleAstronautConnect(socket);
+        handle_astronaut_connect(socket);
         return;
     }
 
@@ -665,25 +589,25 @@ void processMessage(void *socket) {//----------------------------------------- u
         return;
     }
 
-    char id = validateMessage(&message);
+    char id = validate_message(&message);
 
     //if (id == 0) return;
 
-    astronaut_connect con_reply;
+    connect_message con_reply;
     con_reply.connect = 1;
 
     switch(message.msg_type) {
         case 1:
-            handleAstronautMovement(id, message.direction);
+            handle_astronaut_movement(id, message.direction);
             
             break;
         case 2:
-            handleAstronautZap(id);
+            handle_astronaut_zap(id);
             
 
             break;
         case 3:
-            handleAstronautDisconnect(id);
+            handle_astronaut_disconnect(id);
             con_reply.connect = 0;
             break;
         case 5:
@@ -691,30 +615,24 @@ void processMessage(void *socket) {//----------------------------------------- u
                 con_reply.connect = 0;
                 break;
             }
-            handleAlientMovement(message);
+            handle_alien_movement(message);
 
     }
-    // we have to send back the connect/ disconnect info....
-
-
     // to send the scores
     for (int i = 0; i < MAX_PLAYERS; i++) {
         con_reply.scores[i] = state.astronaut_scores[i];
     }
 
-
     zmq_send(socket, &con_reply, sizeof(con_reply), 0);
-}//----------------------------------------------------------------------------------------
+}
 
-void printGameField(game_state *state,WINDOW * my_win,WINDOW * my_win_2) {
+void print_game_field(game_state *state,WINDOW * my_win,WINDOW * my_win_2) {
 
     for (int i = 1; i < FIELD_SIZE+1; i++) {
         for (int j = 1; j < FIELD_SIZE+1; j++) {
-            //printf("%c ", state->game_field[i][j]);
             wmove(my_win, j, i);
             waddch(my_win,state->game_field[i-1][j-1]| A_BOLD);
         }}
-        //printf("\n");
 
         // update score screen 
         mvwprintw(my_win_2, 1, 1, "SCORE");
@@ -744,7 +662,7 @@ int main() {
     assert(rc_display == 0);
 
     // start variables
-    initializeGame();
+    initialize_game();
 
     // lncurses 
     initscr();		    	
@@ -758,10 +676,12 @@ int main() {
 	wrefresh(my_win);
 
     while (1) {
-        processMessage(responder_interaction);
+        process_message(responder_interaction);
         updateGameState();
-        printGameField(&state,my_win,my_win_2);
-        sendGameState(publisher_display);
+        print_game_field(&state,my_win,my_win_2);
+
+        // Send game state
+        zmq_send(publisher_display, &state, sizeof(state), 0);
     }
 
     endwin();			/* End curses mode		  */

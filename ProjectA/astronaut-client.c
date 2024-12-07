@@ -18,7 +18,7 @@ int main() {
     noecho();
     keypad(stdscr, TRUE);
     
-    astronaut_client m;
+    interaction_message m;
     int code;
     // Connect to server
     m.msg_type = 0;
@@ -27,8 +27,8 @@ int main() {
     }
 
     // Receive assigned letter
-    astronaut_connect connect_reply;
-    zmq_recv(requester, &connect_reply, sizeof(astronaut_connect), 0);
+    connect_message connect_reply;
+    zmq_recv(requester, &connect_reply, sizeof(connect_message), 0);
     if (connect_reply.id < 'A' || connect_reply.id > 'H') {
         printf("Max Players reached");
         return 0;
