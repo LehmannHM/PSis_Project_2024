@@ -66,12 +66,7 @@ int main() {
 
         zmq_send(requester, &m, sizeof(m), 0);
 
-        //int astronaut_scores[MAX_PLAYERS];
-        //zmq_recv(requester, &astronaut_scores, sizeof(int), 0); 
         zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0); // update this
-        
-        //mvprintw(0, 0, "Astronaut %c - Score: %d", m.id, astronaut_scores[0]);
-        //mvprintw(0, 0, "Astronaut %c - Score: %d", m.id, connect_reply.scores[0]);
         mvprintw(0, 0, "Astronaut %c - Score: %d", m.id, connect_reply.scores[m.id-'A']);
         refresh();
     }

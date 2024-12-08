@@ -52,83 +52,67 @@ double time_diff_ms(struct timespec start, struct timespec end) {
 void initialize_astronauts(){     // can also replace austronaut when it gets disconnected
  
     if (astronauts[0].connect == 0){
-       
         astronauts[0].id = 'A';
         astronauts[0].move_type = 'V';
         astronauts[0].x = 1;
         astronauts[0].y = FIELD_SIZE/2;
         astronauts[0].score = 0;
-   
-        }
+    }
  
     if (astronauts[1].connect == 0){
- 
         astronauts[1].id = 'B';
         astronauts[1].move_type = 'V';
         astronauts[1].x = FIELD_SIZE-2;
         astronauts[1].y = FIELD_SIZE/2;
         astronauts[1].score = 0;
-   
-        }
+    }
  
     if (astronauts[2].connect == 0){ // new
- 
         astronauts[2].id = 'C';
         astronauts[2].move_type = 'H';
         astronauts[2].x = FIELD_SIZE/2;
         astronauts[2].y = 1;
         astronauts[2].score = 0;
-   
-        }
+    }
  
     if (astronauts[3].connect == 0){
- 
         astronauts[3].id = 'D';
         astronauts[3].move_type = 'H';
         astronauts[3].x = FIELD_SIZE/2;
         astronauts[3].y = FIELD_SIZE-1;
         astronauts[3].score = 0;
-   
-        }
+    }
  
     if (astronauts[4].connect == 0){ // new
- 
         astronauts[4].id = 'E';
         astronauts[4].move_type = 'V';
         astronauts[4].x = 0;
         astronauts[4].y = FIELD_SIZE/2;
         astronauts[4].score = 0;
-   
-        }
+    }
  
     if (astronauts[5].connect == 0){
- 
         astronauts[5].id = 'F';
         astronauts[5].move_type = 'V';
-        astronauts[5].x = FIELD_SIZE-2;
+        astronauts[5].x = FIELD_SIZE-1;
         astronauts[5].y = FIELD_SIZE/2;
         astronauts[5].score = 0;
-   
-        }
+    }
  
-    if (astronauts[6].connect == 0){ // new
- 
+    if (astronauts[6].connect == 0){ 
         astronauts[6].id = 'G';
         astronauts[6].move_type = 'H';
         astronauts[6].x = FIELD_SIZE/2;
         astronauts[6].y = 0;
-        astronauts[6].score = 0;
-   
+        astronauts[6].score = 0;   
         }
  
-    if (astronauts[7].connect == 0){
- 
+    if (astronauts[7].connect == 0){ 
         astronauts[7].id = 'H';
         astronauts[7].move_type = 'V';
         astronauts[7].x = FIELD_SIZE/2;
         astronauts[7].y = FIELD_SIZE-1;
         astronauts[7].score = 0;
-
     }
 }
 
@@ -256,7 +240,7 @@ void draw_laser_path(Astronaut *astronaut) {
     }
 }
 
-void updateGameState() {
+void update_game_state() {
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
 
@@ -316,36 +300,12 @@ char validate_message(interaction_message *message) {     //------------check th
     return message->id;
 }
 
-void move_astronaut_in_field(int old_x, int old_y, int new_x, int new_y) {
-    if (old_x == new_x && old_y == new_y) return;
-    state.game_field[new_x][new_y] = state.game_field[old_x][old_y];
-    state.game_field[old_x][old_y] = ' ';
-}
 void move_astronaut(Astronaut *astronaut, int old_x, int old_y) {
     if (old_x == astronaut->x && old_y == astronaut->y) return;
     state.game_field[astronaut->x][astronaut->y] = astronaut->id;
     if (old_x == -1 || old_y == -1) return;
     state.game_field[old_x][old_y] = ' ';
 }
-
-
-void moveAustronautInZone(Astronaut* astronaut, bool delete) {
-    if (astronaut->move_type == 'V') {
-        for (int y = ASTRONAUT_MIN; y <= ASTRONAUT_MAX; y++) {   // only need to delete where it was noo??
-            state.game_field[astronaut->x][y] = ' '; 
-        }
-    } else  if (astronaut->move_type == 'H') {
-        for (int x = ASTRONAUT_MIN; x <= ASTRONAUT_MAX; x++) {
-            state.game_field[x][astronaut->y] = ' '; 
-        }
-    }
-
-    if (!delete) {
-        state.game_field[astronaut->x][astronaut->y] = astronaut->id;
-    }
-}
-
-
 
 void handle_astronaut_connect(void *client_socket) {   //-----check this daniel
     connect_message con_reply;
@@ -377,7 +337,6 @@ void handle_astronaut_connect(void *client_socket) {   //-----check this daniel
     astronaut->finished_stunned = current_time;
 
     // graphical interface
-    // moveAustronautInZone(&astronaut, false);
     move_astronaut(astronaut, -1, -1);
 
     // reply 
@@ -429,7 +388,7 @@ void handle_alien_movement(interaction_message message){
 
     // set new position
 
-    if (new_x <FIELD_SIZE - 3 && new_y < FIELD_SIZE-3 && new_x > 2 && new_y > 2){
+    if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x >= ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
         alien->y = new_y;
         alien->x = new_x;
     }
@@ -478,8 +437,10 @@ void handle_astronaut_movement(char id, direction_t direction) {
     
     clear_laser_path(astronaut);
 
-    int new_x, old_x = astronaut->x;
-    int new_y, old_y = astronaut->y;
+    int new_x = astronaut->x;
+    int new_y = astronaut->y;
+    int old_x = astronaut->x;
+    int old_y = astronaut->y;
 
     if (astronaut->move_type == 'V') { // Vertical movement
         switch(direction) {
@@ -502,16 +463,15 @@ void handle_astronaut_movement(char id, direction_t direction) {
     }
 
     // Check bounds for vertical movement
-    if (new_y >= ASTRONAUT_MIN && new_y <= ASTRONAUT_MAX) {
+    if (new_y >= ASTRONAUT_MIN && new_y < ASTRONAUT_MAX) {
         astronaut->y = new_y;
     }
 
     // Check bounds for horizontal movement
-    if (new_x >= ASTRONAUT_MIN && new_x <= ASTRONAUT_MAX) {
+    if (new_x >= ASTRONAUT_MIN && new_x < ASTRONAUT_MAX) {
         astronaut->x = new_x;
     }
 
-    // moveAustronautInZone(astronaut, false);
     move_astronaut(astronaut, old_x, old_y);
 
     if (time_diff_ms(current_time, astronaut->finished_zap) >= 0) {
@@ -616,9 +576,8 @@ void process_message(void *socket) {
                 break;
             }
             handle_alien_movement(message);
-
     }
-    // to send the scores
+    // Send the scores
     for (int i = 0; i < MAX_PLAYERS; i++) {
         con_reply.scores[i] = state.astronaut_scores[i];
     }
@@ -626,24 +585,37 @@ void process_message(void *socket) {
     zmq_send(socket, &con_reply, sizeof(con_reply), 0);
 }
 
-void print_game_field(game_state *state,WINDOW * my_win,WINDOW * my_win_2) {
+void print_game_field(game_state *state, WINDOW *number_window, WINDOW *game_window, WINDOW *score_window) {
+    for (int i = 2; i <= FIELD_SIZE + 1; i++) {
+        mvwprintw(number_window, i, 0, "%d", (i-1) % 10);
+    }
 
-    for (int i = 1; i < FIELD_SIZE+1; i++) {
-        for (int j = 1; j < FIELD_SIZE+1; j++) {
-            wmove(my_win, j, i);
-            waddch(my_win,state->game_field[i-1][j-1]| A_BOLD);
-        }}
+    // Print row numbers on left and game field
+    for (int i = 2; i <= FIELD_SIZE + 1; i++) {
+        mvwprintw(number_window, 0, i, "%d", (i-1) % 10);
+        for (int j = 1; j < FIELD_SIZE + 1; j++) {
+            wmove(game_window, j, i);
+            waddch(game_window, state->game_field[i-1][j-1] | A_BOLD);
+        }
+    }
 
-        // update score screen 
-        mvwprintw(my_win_2, 1, 1, "SCORE");
-    
-        for (int i = 0; i < MAX_PLAYERS; i++){
-            mvwprintw(my_win_2, i+2, 1, "%c - %d",letters[i], state->astronaut_scores[i]);
-        } 
+    // for (int i = 1; i < FIELD_SIZE+1; i++) {
+    //     for (int j = 1; j < FIELD_SIZE+1; j++) {
+    //         wmove(my_win, j, i);
+    //         waddch(my_win,state->game_field[i-1][j-1]| A_BOLD);
+    //     }}
 
-        box(my_win, 0 , 0);
-        wrefresh(my_win);
-        wrefresh(my_win_2);
+    // update score screen 
+    mvwprintw(score_window, 1, 1, "SCORE");
+
+    for (int i = 0; i < MAX_PLAYERS; i++){
+        mvwprintw(score_window, i+2, 1, "%c - %d",letters[i], state->astronaut_scores[i]);
+    } 
+  
+    box(game_window, 0, 0);
+    wrefresh(number_window);
+    wrefresh(game_window);
+    wrefresh(score_window);
 }
 
 int main() {
@@ -670,15 +642,16 @@ int main() {
     keypad(stdscr, TRUE);   
 	noecho();			    
     /* creates a window and draws a border */
-    WINDOW * my_win = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 0, 0);
-    WINDOW * my_win_2 = newwin(15, 30, 0, FIELD_SIZE+4);
-    box(my_win_2, 0 , 0);	
-	wrefresh(my_win);
+    WINDOW *numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
+    WINDOW *game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
+    WINDOW *score_window = newwin(15, 30, 1, FIELD_SIZE+5);
+    box(score_window, 0 , 0);	
+	wrefresh(score_window);
 
     while (1) {
         process_message(responder_interaction);
-        updateGameState();
-        print_game_field(&state,my_win,my_win_2);
+        update_game_state();
+        print_game_field(&state, numbers_window, game_window, score_window);
 
         // Send game state
         zmq_send(publisher_display, &state, sizeof(state), 0);
