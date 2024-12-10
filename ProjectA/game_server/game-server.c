@@ -649,6 +649,7 @@ int main() {
     void *responder_interaction = zmq_socket(context, ZMQ_REP);
     if (zmq_bind(responder_interaction, INTERACTION_ADDRESS) == -1) {
         printf("Error binding: %s\n", zmq_strerror(zmq_errno()));
+        return -1;
     }
     // assert(responder_interaction == 0);
 
