@@ -6,7 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include "common.h"
+#include "../common.h"
 
 #include <sys/types.h>
 
@@ -148,7 +148,7 @@ void generate_aliens(){
         m.id = connect_reply.id;
         memcpy(m.token, connect_reply.token, TOKEN_SIZE);
 
-        srand(m.id);
+        srand((int)m.id);
 
         while (1) {
             m.msg_type = 5;
@@ -624,6 +624,7 @@ void print_game_field(game_state *state, WINDOW *number_window, WINDOW *game_win
 
     // update score screen
     werase(score_window);
+    box(score_window, 0 , 0);
     mvwprintw(score_window, 1, 1, "SCORE");
 
     int count = 0;
@@ -653,8 +654,7 @@ int main() {
 
     // display PUP socket
     void *publisher_display = zmq_socket(context, ZMQ_PUB);
-    int rc_display = zmq_bind(publisher_display, DISPLAY_ADDRESS);
-    // assert(rc_display == 0);
+    zmq_bind(publisher_display, DISPLAY_ADDRESS);
 
     // start variables
     initialize_game();
@@ -668,8 +668,6 @@ int main() {
     WINDOW *numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
     WINDOW *game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
     WINDOW *score_window = newwin(15, 30, 1, FIELD_SIZE+5);
-    box(score_window, 0 , 0);	
-	wrefresh(score_window);
 
     while (1) {
         // process current message, update game state and respond        

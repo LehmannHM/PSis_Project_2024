@@ -2,7 +2,7 @@
 #include <ncurses.h>
 #include <stdio.h>
 #include <string.h>
-#include "common.h"
+#include "../common.h"
 
 int main() {
     void *context = zmq_ctx_new();

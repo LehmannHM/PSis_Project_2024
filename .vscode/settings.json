@@ -17,6 +17,11 @@
             "cwd": "/home/matthi/projects/project/ProjectA",
             "binaryPath": "/home/matthi/projects/project/ProjectA/astronaut-client",
             "binaryArgs": []
+        },
+        {
+            "cwd": "/home/matthi/projects/project/ProjectA/game_server",
+            "binaryPath": "/home/matthi/projects/project/ProjectA/game_server/game-server",
+            "binaryArgs": []
         }
     ],
     "makefile.configureOnOpen": false
