@@ -10,6 +10,7 @@
 
 #include <sys/types.h>
 
+// ---------------- constants -------------------------------
 #define MAX_PLAYERS 8
 #define STUN_DURATION 10
 #define ZAP_COOLDOWN 3
@@ -18,30 +19,31 @@
 #define ASTRONAUT_MAX (FIELD_SIZE - 2)
 #define ALIEN_MAX_COUNT ((FIELD_SIZE - 4) * (FIELD_SIZE - 4) / 3)
 
+// ---------------- types -------------------------------
 typedef struct {
     char id;
     int x, y;
     int score;
     struct timespec finished_stunned; // Last stunned time
     struct timespec finished_zap; // Last zap time
-    int zap_active;                
-    char move_type;
-    int code;
-    int connect;
+    int zap_active;
+    char move_type; // 'H' or 'V' for horizontal or vertical movement
+    unsigned char token[TOKEN_SIZE];
+    int connect; // 0 if disconnected, 1 if connected
 } Astronaut;
 
 typedef struct {
     int x, y;
     int connect;
-    int code;
+    char id;
+    unsigned char token[TOKEN_SIZE];
 } Alien;
 
-// useful variables
-int alien_count = (FIELD_SIZE - 4) * (FIELD_SIZE - 4) / 3;
+// initialize global variables
+char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 game_state state;
 Astronaut astronauts[MAX_PLAYERS];
 int astronaut_count = 0;
-char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 Alien aliens[ALIEN_MAX_COUNT];
 
 double time_diff_ms(struct timespec start, struct timespec end) {
@@ -118,85 +120,79 @@ void initialize_astronauts(){     // can also replace astronaut when it gets dis
 
 void generate_aliens(){
 
-    pid_t pid = fork();  // Create a new process
+    pid_t pid = fork();  // create a new process
 
     if (pid < 0) {
-        // Error occurred
+        // error occurred
         perror("Fork failed");
-        exit(1); // Terminate child process
+        exit(1); // terminate child process
     } else if (pid == 0) {
         void *context = zmq_ctx_new();
         void *requester = zmq_socket(context, ZMQ_REQ);
-        // zmq_connect(requester, INTERACTION_ADDRESS);
         if (zmq_connect(requester, INTERACTION_ADDRESS) != 0) {
             printf("Error connecting to server: %s\n", zmq_strerror(zmq_errno()));
         }
         
         interaction_message m;
-        int code;
-        // Connect to server
+
+        // connect to server
         m.msg_type = 4;
         if (zmq_send(requester, &m, sizeof(m), 0) == -1) {
             printf("Error sending message: %s\n", zmq_strerror(zmq_errno()));
         }
 
-        // Receive assigned letter
-        connect_message connect_reply;  // have to
+        // receive assigned letter
+        connect_message connect_reply;
         zmq_recv(requester, &connect_reply, sizeof(connect_message), 0);
 
-        code = connect_reply.code;
-
         m.id = connect_reply.id;
-        m.code = connect_reply.code;
+        memcpy(m.token, connect_reply.token, TOKEN_SIZE);
 
-        srand(code);
+        srand(m.id);
 
         while (1) {
             m.msg_type = 5;
             
             m.direction = random()%4;
-            
 
             zmq_send(requester, &m, sizeof(m), 0);
-
             
             zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0);
 
             if(connect_reply.connect==0){
                 break;
             }
-            sleep(1);
-            
+            sleep(1);            
         }
-        // Cleanup
+        // cleanup
         zmq_close(requester);
         zmq_ctx_destroy(context);
 
-        exit(0); // Terminate child process
+        exit(0); // terminate child process
 
     } else {// parent process
     }
 }
 
 void initialize_game() {
-    // Initialize the game field to empty spaces
+    // initialize the game field to empty spaces
     for (int i = 0; i < FIELD_SIZE; i++) {
         for (int j = 0; j < FIELD_SIZE; j++) {
-            state.game_field[i][j] = ' '; // Fill with empty spaces
+            state.game_field[i][j] = ' '; // fill with empty spaces
         }
     }
 
-    for (int i = 0; i < MAX_PLAYERS; i++) { // to initialize astronauts
+    for (int i = 0; i < MAX_PLAYERS; i++) { // initialize astronauts
         astronauts[i].connect = 0;
     } 
 
-    for (int i = 0; i < alien_count; i++) { // to initialize aliens
+    for (int i = 0; i < ALIEN_MAX_COUNT; i++) { // initialize aliens
         aliens[i].connect = 0;
     }
 
     initialize_astronauts();
 
-    for (int i = 0; i < alien_count; i++) {
+    for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
         generate_aliens();
     }
 }
@@ -204,6 +200,13 @@ void initialize_game() {
 int find_astronaut_index(char id) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (astronauts[i].id == id) return i;
+    }
+    return -1;
+}
+
+int find_alien_index(char id) {
+    for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
+        if (aliens[i].id == id) return i;
     }
     return -1;
 }
@@ -244,7 +247,7 @@ void update_game_state() {
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time); 
 
-    // Update laser rays
+    // update laser rays
     for (int i = 0; i < MAX_PLAYERS; i++) {
         Astronaut *astronaut = &astronauts[i];
 
@@ -256,31 +259,29 @@ void update_game_state() {
                 continue;
             }
 
-            // Check for alien hits in the zap's path   
+            // check for alien hits in the zap's path   
             int start_x = astronaut->x;                 
             int start_y = astronaut->y;
 
-            for (int j = 0; j <= alien_count; j++) {
+            for (int j = 0; j <= ALIEN_MAX_COUNT; j++) {
 
                 if (astronaut->move_type == 'H' && aliens[j].connect && aliens[j].x == start_x) {
 
-                    state.game_field[start_x][aliens[j].y] = '|'; // Remove alien from field
+                    state.game_field[start_x][aliens[j].y] = '|'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
                 }
 
                 else if (astronaut->move_type == 'V' && aliens[j].connect && aliens[j].y == start_y) {
 
-                    state.game_field[aliens[j].x][start_y] = '-'; // Remove alien from field
+                    state.game_field[aliens[j].x][start_y] = '-'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
                     
                 }
-            }
+            }       
 
-                        
-
-            // Check for other astronauts in the line of fire
+            // check for other astronauts in the line of fire
             for (int j = 0; j < MAX_PLAYERS; j++) {
                 if (astronauts[j].id != astronaut->id && astronaut[j].connect) { 
                     if ((astronaut->move_type == 'H' && astronaut->x == astronauts[j].x) ||
@@ -298,11 +299,25 @@ void update_game_state() {
 }
 
 char validate_message(interaction_message *message) {     
-    if (message->msg_type < 0 || message->msg_type > 3) return 0;
-    if (message->id < 'A' || message->id > 'H') return 0;
-    int index = find_astronaut_index(message->id);
-    if (index < 0 || message->code != astronauts[index].code) return 0;
-    return message->id;
+    if (message->msg_type < 0 || message->msg_type > 5) return 0;
+
+    // handle astronauts
+    if (message->msg_type >= 0 && message->msg_type <= 3) {
+        if (message->id < 'A' || message->id > 'H') return 0;
+
+        int index = find_astronaut_index(message->id);
+        if (index < 0 || memcmp(message->token, astronauts[index].token, TOKEN_SIZE) != 0) return 0;
+
+        return message->id;
+    }
+
+    // handle aliens
+    if (message->msg_type <= 5) {
+        
+        return message->id;
+    }
+
+    return 0;
 }
 
 void move_astronaut(Astronaut *astronaut, int old_x, int old_y) {
@@ -312,11 +327,14 @@ void move_astronaut(Astronaut *astronaut, int old_x, int old_y) {
     state.game_field[old_x][old_y] = ' ';
 }
 
+void generate_token(unsigned char *token) {
+    getrandom(token, TOKEN_SIZE, 0);
+}
+
 void handle_astronaut_connect(void *client_socket) {   
     connect_message con_reply;
     if (astronaut_count >= MAX_PLAYERS) {
         con_reply.id = 'Z';
-        con_reply.code = -1;
         zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
         return;
     }
@@ -345,8 +363,8 @@ void handle_astronaut_connect(void *client_socket) {
 
     // reply 
     con_reply.id = id;
-    con_reply.code = random();
-    astronaut->code = con_reply.code;
+    generate_token(astronaut->token);
+    memcpy(con_reply.token, astronaut->token, TOKEN_SIZE);
     zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
     astronaut_count++;
 }
@@ -354,10 +372,10 @@ void handle_astronaut_connect(void *client_socket) {
 
 void handle_alien_movement(interaction_message message){
 
-    int index = message.code;
-    Alien *alien = &aliens[index];
-
+    int index = find_alien_index(message.id);
     if (index == -1) return;
+
+    Alien *alien = &aliens[index];
 
     int new_x = alien->x;
     int new_y = alien->y;
@@ -391,7 +409,6 @@ void handle_alien_movement(interaction_message message){
         }
 
     // set new position
-
     if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x > ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
         alien->y = new_y;
         alien->x = new_x;
@@ -406,14 +423,12 @@ void handleAlienConnect(void *client_socket){
     int i;
 
     for (i = 0; i < ALIEN_MAX_COUNT; i++) {
-
         if (aliens[i].connect == 0){
-
-            aliens[i].code = i;
+            generate_token(aliens[i].token);
             aliens[i].connect = 1;
+            aliens[i].id = 'J' + i;
             break;
-        }
-                        
+        }                        
     }
     
     // Generate random number between for position
@@ -422,8 +437,8 @@ void handleAlienConnect(void *client_socket){
 
     state.game_field[aliens[i].x][aliens[i].y] = '*';
     
-    con_reply.id = i;
-    con_reply.code = i;
+    con_reply.id = aliens[i].id;
+    memcpy(con_reply.token, aliens[i].token, TOKEN_SIZE);
     zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
     
     return;
@@ -556,6 +571,12 @@ void process_message(void *socket) {
 
     char id = validate_message(&message);
 
+    // handle invalid message
+    if (id == 0) {
+        zmq_send(socket, NULL, 0, 0);
+        return;
+    }   
+
     connect_message con_reply;
     con_reply.connect = 1;
 
@@ -571,7 +592,8 @@ void process_message(void *socket) {
             con_reply.connect = 0;
             break;
         case 5:
-            if(aliens[message.code].connect == 0){    // remove the aliens
+            int index = find_alien_index(id);
+            if(index > -1 && aliens[index].connect == 0){    // remove the aliens
                 con_reply.connect = 0;
                 break;
             }
@@ -622,17 +644,17 @@ void print_game_field(game_state *state, WINDOW *number_window, WINDOW *game_win
 int main() {
     void *context = zmq_ctx_new();
 
-    // Interaction REP socket
+    // interaction REP socket
     void *responder_interaction = zmq_socket(context, ZMQ_REP);
     if (zmq_bind(responder_interaction, INTERACTION_ADDRESS) == -1) {
         printf("Error binding: %s\n", zmq_strerror(zmq_errno()));
     }
-    // assert(rc_interaction == 0);
+    // assert(responder_interaction == 0);
 
-    // Display PUP socket
+    // display PUP socket
     void *publisher_display = zmq_socket(context, ZMQ_PUB);
     int rc_display = zmq_bind(publisher_display, DISPLAY_ADDRESS);
-    assert(rc_display == 0);
+    // assert(rc_display == 0);
 
     // start variables
     initialize_game();
@@ -642,7 +664,7 @@ int main() {
 	cbreak();				
     keypad(stdscr, TRUE);   
 	noecho();			    
-    /* creates a window and draws a border */
+
     WINDOW *numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
     WINDOW *game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
     WINDOW *score_window = newwin(15, 30, 1, FIELD_SIZE+5);
@@ -650,16 +672,18 @@ int main() {
 	wrefresh(score_window);
 
     while (1) {
-        
+        // process current message, update game state and respond        
         process_message(responder_interaction);
+
+        // print the game field to the screen
         print_game_field(&state, numbers_window, game_window, score_window);
 
-        // Send game state
+        // send updated game state
         zmq_send(publisher_display, &state, sizeof(state), 0);
     }
 
-    endwin();			/* End curses mode		  */
-
+    // cleanup
+    endwin();
     zmq_close(responder_interaction);
     zmq_close(publisher_display);
     zmq_ctx_destroy(context);

@@ -18,28 +18,31 @@ int main() {
     noecho();
     keypad(stdscr, TRUE);
     
+    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 
     interaction_message m;
-    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
-    // Connect to server
+    // connect to server
     m.msg_type = 0;
     if (zmq_send(requester, &m, sizeof(m), 0) == -1) {
         printf("Error sending message: %s\n", zmq_strerror(zmq_errno()));
     }
 
-    // Receive assigned letter
+    // receive assigned letter
     connect_message connect_reply;
     zmq_recv(requester, &connect_reply, sizeof(connect_message), 0);
+
+    // received id out of range
     if (connect_reply.id < 'A' || connect_reply.id > 'H') {
         printf("Max Players reached");
         return 0;
     }
 
-    int score = 0;
     int ch;
     m.id = connect_reply.id;
-    m.code = connect_reply.code;
+    // m.code = connect_reply.code;
+    memcpy(m.token, connect_reply.token, MAX_PLAYERS);
 
+    // exit when q is pressed
     while ((ch = getch()) != 'q' && ch != 'Q') {
         m.msg_type = 1;
         
@@ -63,29 +66,31 @@ int main() {
                 continue;
         }
 
+        // send action to server
         zmq_send(requester, &m, sizeof(m), 0);
 
+        // receive scores
         zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0); 
 
         int count = 0;
         clear();
         for (int i = 0; i < MAX_PLAYERS; i++){
-
-        if(connect_reply.scores[i] > -1){
-        mvprintw(count, 0, "%c - %d",letters[i], connect_reply.scores[i]); 
-        count++;
-        }
-    } 
+            // only print scores of connected astronauts
+            if(connect_reply.scores[i] > -1){
+                mvprintw(count, 0, "%c - %d",letters[i], connect_reply.scores[i]); 
+                count++;
+            }
+        } 
 
         refresh();
     }
 
-    // Disconnect
+    // disconnect
     m.msg_type = 3;
     zmq_send(requester, &m, sizeof(m), 0);
     zmq_recv(requester, NULL, 0, 0);
 
-    // Cleanup
+    // cleanup
     endwin();
     zmq_close(requester);
     zmq_ctx_destroy(context);
