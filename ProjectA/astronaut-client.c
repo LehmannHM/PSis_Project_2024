@@ -7,7 +7,7 @@
 int main() {
     void *context = zmq_ctx_new();
     void *requester = zmq_socket(context, ZMQ_REQ);
-    // zmq_connect(requester, INTERACTION_ADDRESS);
+
     if (zmq_connect(requester, INTERACTION_ADDRESS) != 0) {
         printf("Error connecting to server: %s\n", zmq_strerror(zmq_errno()));
     }
@@ -18,8 +18,9 @@ int main() {
     noecho();
     keypad(stdscr, TRUE);
     
+
     interaction_message m;
-    int code;
+    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
     // Connect to server
     m.msg_type = 0;
     if (zmq_send(requester, &m, sizeof(m), 0) == -1) {
@@ -33,8 +34,6 @@ int main() {
         printf("Max Players reached");
         return 0;
     }
-
-    code = connect_reply.code;
 
     int score = 0;
     int ch;
@@ -66,8 +65,18 @@ int main() {
 
         zmq_send(requester, &m, sizeof(m), 0);
 
-        zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0); // update this
-        mvprintw(0, 0, "Astronaut %c - Score: %d", m.id, connect_reply.scores[m.id-'A']);
+        zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0); 
+
+        int count = 0;
+        clear();
+        for (int i = 0; i < MAX_PLAYERS; i++){
+
+        if(connect_reply.scores[i] > -1){
+        mvprintw(count, 0, "%c - %d",letters[i], connect_reply.scores[i]); 
+        count++;
+        }
+    } 
+
         refresh();
     }
 

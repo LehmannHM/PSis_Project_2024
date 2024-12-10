@@ -16,15 +16,15 @@
 
 #define ASTRONAUT_MIN 2
 #define ASTRONAUT_MAX (FIELD_SIZE - 2)
-#define ALIEN_MAX ((FIELD_SIZE - 4) * (FIELD_SIZE - 4) / 3)
+#define ALIEN_MAX_COUNT ((FIELD_SIZE - 4) * (FIELD_SIZE - 4) / 3)
 
 typedef struct {
     char id;
     int x, y;
-    int *score;
+    int score;
     struct timespec finished_stunned; // Last stunned time
     struct timespec finished_zap; // Last zap time
-    int zap_active;                // used where?
+    int zap_active;                
     char move_type;
     int code;
     int connect;
@@ -42,21 +42,21 @@ game_state state;
 Astronaut astronauts[MAX_PLAYERS];
 int astronaut_count = 0;
 char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
-Alien aliens[ALIEN_MAX];
+Alien aliens[ALIEN_MAX_COUNT];
 
 double time_diff_ms(struct timespec start, struct timespec end) {
     double result = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     return result;
 }
 
-void initialize_astronauts(){     // can also replace austronaut when it gets disconnected
+void initialize_astronauts(){     // can also replace astronaut when it gets disconnected
  
     if (astronauts[0].connect == 0){
         astronauts[0].id = 'A';
         astronauts[0].move_type = 'V';
-        astronauts[0].x = 1;
+        astronauts[0].x = 2;
         astronauts[0].y = FIELD_SIZE/2;
-        astronauts[0].score = 0;
+        astronauts[0].score = -1;
     }
  
     if (astronauts[1].connect == 0){
@@ -64,31 +64,31 @@ void initialize_astronauts(){     // can also replace austronaut when it gets di
         astronauts[1].move_type = 'V';
         astronauts[1].x = FIELD_SIZE-2;
         astronauts[1].y = FIELD_SIZE/2;
-        astronauts[1].score = 0;
+        astronauts[1].score = -1;
     }
  
-    if (astronauts[2].connect == 0){ // new
+    if (astronauts[2].connect == 0){ 
         astronauts[2].id = 'C';
         astronauts[2].move_type = 'H';
         astronauts[2].x = FIELD_SIZE/2;
         astronauts[2].y = 1;
-        astronauts[2].score = 0;
+        astronauts[2].score = -1;
     }
  
     if (astronauts[3].connect == 0){
         astronauts[3].id = 'D';
         astronauts[3].move_type = 'H';
         astronauts[3].x = FIELD_SIZE/2;
-        astronauts[3].y = FIELD_SIZE-1;
-        astronauts[3].score = 0;
+        astronauts[3].y = FIELD_SIZE-2;
+        astronauts[3].score = -1;
     }
  
-    if (astronauts[4].connect == 0){ // new
+    if (astronauts[4].connect == 0){ 
         astronauts[4].id = 'E';
         astronauts[4].move_type = 'V';
-        astronauts[4].x = 0;
+        astronauts[4].x = 1;
         astronauts[4].y = FIELD_SIZE/2;
-        astronauts[4].score = 0;
+        astronauts[4].score = -1;
     }
  
     if (astronauts[5].connect == 0){
@@ -96,7 +96,7 @@ void initialize_astronauts(){     // can also replace austronaut when it gets di
         astronauts[5].move_type = 'V';
         astronauts[5].x = FIELD_SIZE-1;
         astronauts[5].y = FIELD_SIZE/2;
-        astronauts[5].score = 0;
+        astronauts[5].score = -1;
     }
  
     if (astronauts[6].connect == 0){ 
@@ -104,15 +104,15 @@ void initialize_astronauts(){     // can also replace austronaut when it gets di
         astronauts[6].move_type = 'H';
         astronauts[6].x = FIELD_SIZE/2;
         astronauts[6].y = 0;
-        astronauts[6].score = 0;   
+        astronauts[6].score = -1;   
         }
  
     if (astronauts[7].connect == 0){ 
         astronauts[7].id = 'H';
-        astronauts[7].move_type = 'V';
+        astronauts[7].move_type = 'H';
         astronauts[7].x = FIELD_SIZE/2;
         astronauts[7].y = FIELD_SIZE-1;
-        astronauts[7].score = 0;
+        astronauts[7].score = -1;
     }
 }
 
@@ -159,7 +159,7 @@ void generate_aliens(){
 
             zmq_send(requester, &m, sizeof(m), 0);
 
-            //int astronaut_scores[MAX_PLAYERS];
+            
             zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0);
 
             if(connect_reply.connect==0){
@@ -242,7 +242,7 @@ void draw_laser_path(Astronaut *astronaut) {
 
 void update_game_state() {
     struct timespec current_time;
-    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    clock_gettime(CLOCK_MONOTONIC, &current_time); 
 
     // Update laser rays
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -256,8 +256,8 @@ void update_game_state() {
                 continue;
             }
 
-            // Check for alien hits in the zap's path   // refazer isto para aliens e não os desenhos....posso aproveitar deseenhos
-            int start_x = astronaut->x;                 // aproveitar desenhos e fazer update de localização com função
+            // Check for alien hits in the zap's path   
+            int start_x = astronaut->x;                 
             int start_y = astronaut->y;
 
             for (int j = 0; j <= alien_count; j++) {
@@ -265,18 +265,20 @@ void update_game_state() {
                 if (astronaut->move_type == 'H' && aliens[j].connect && aliens[j].x == start_x) {
 
                     state.game_field[start_x][aliens[j].y] = '|'; // Remove alien from field
-                    (*astronaut->score)++;
+                    (astronaut->score)++;
                     aliens[j].connect = 0;
                 }
 
                 else if (astronaut->move_type == 'V' && aliens[j].connect && aliens[j].y == start_y) {
 
                     state.game_field[aliens[j].x][start_y] = '-'; // Remove alien from field
-                    (*astronaut->score)++;
+                    (astronaut->score)++;
                     aliens[j].connect = 0;
                     
                 }
             }
+
+                        
 
             // Check for other astronauts in the line of fire
             for (int j = 0; j < MAX_PLAYERS; j++) {
@@ -289,10 +291,13 @@ void update_game_state() {
                 }
             }
         }
+
+        // update scores
+        state.astronaut_scores[i] = astronaut->score;
     }
 }
 
-char validate_message(interaction_message *message) {     //------------check this (daniel)
+char validate_message(interaction_message *message) {     
     if (message->msg_type < 0 || message->msg_type > 3) return 0;
     if (message->id < 'A' || message->id > 'H') return 0;
     int index = find_astronaut_index(message->id);
@@ -307,7 +312,7 @@ void move_astronaut(Astronaut *astronaut, int old_x, int old_y) {
     state.game_field[old_x][old_y] = ' ';
 }
 
-void handle_astronaut_connect(void *client_socket) {   //-----check this daniel
+void handle_astronaut_connect(void *client_socket) {   
     connect_message con_reply;
     if (astronaut_count >= MAX_PLAYERS) {
         con_reply.id = 'Z';
@@ -326,17 +331,16 @@ void handle_astronaut_connect(void *client_socket) {   //-----check this daniel
 
     Astronaut *astronaut = &astronauts[index];
 
-    // set up
+    // set up new astronaut
     char id = 'A' + index;
     astronaut->id = id;
-    astronaut->score = &state.astronaut_scores[index];
-    *astronaut->score = 0;
+    astronaut->score = 0;
     astronaut->connect = 1;
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
     astronaut->finished_stunned = current_time;
 
-    // graphical interface
+    // place astronaut
     move_astronaut(astronaut, -1, -1);
 
     // reply 
@@ -347,7 +351,7 @@ void handle_astronaut_connect(void *client_socket) {   //-----check this daniel
     astronaut_count++;
 }
 
-//----------------------------------------------------------- alien  functions
+
 void handle_alien_movement(interaction_message message){
 
     int index = message.code;
@@ -362,7 +366,7 @@ void handle_alien_movement(interaction_message message){
     state.game_field[alien->x][alien->y] = ' ';
 
     // check if there was another alien there
-    for (int i = 0; i < ALIEN_MAX; i++) {
+    for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
 
         if (alien->x == aliens[i].x && alien->y == aliens[i].y && i!= index && aliens[i].connect) {
 
@@ -388,7 +392,7 @@ void handle_alien_movement(interaction_message message){
 
     // set new position
 
-    if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x >= ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
+    if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x > ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
         alien->y = new_y;
         alien->x = new_x;
     }
@@ -401,7 +405,7 @@ void handleAlienConnect(void *client_socket){
     connect_message con_reply;
     int i;
 
-    for (i = 0; i < ALIEN_MAX; i++) {
+    for (i = 0; i < ALIEN_MAX_COUNT; i++) {
 
         if (aliens[i].connect == 0){
 
@@ -413,7 +417,7 @@ void handleAlienConnect(void *client_socket){
     }
     
     // Generate random number between for position
-    aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;  // verify these limits
+    aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;  
     aliens[i].y = rand() % (FIELD_SIZE - 4) + 2;
 
     state.game_field[aliens[i].x][aliens[i].y] = '*';
@@ -424,7 +428,6 @@ void handleAlienConnect(void *client_socket){
     
     return;
 }
-//------------------------------------------------------------------
 
 void handle_astronaut_movement(char id, direction_t direction) {
     int index = find_astronaut_index(id);
@@ -523,7 +526,7 @@ void handle_astronaut_disconnect(char id) {
 
     state.game_field[astronauts[index].x][astronauts[index].y] = ' ';
 
-    // Remove astronaut
+    // Reset astronauts that were disconnected
     initialize_astronauts();
 
     astronaut_count--;
@@ -541,17 +544,17 @@ void process_message(void *socket) {
     
     if (message.msg_type == 0) {
         handle_astronaut_connect(socket);
+        update_game_state();
         return;
     }
 
     if (message.msg_type == 4) {
         handleAlienConnect(socket);
+        update_game_state();
         return;
     }
 
     char id = validate_message(&message);
-
-    //if (id == 0) return;
 
     connect_message con_reply;
     con_reply.connect = 1;
@@ -559,12 +562,9 @@ void process_message(void *socket) {
     switch(message.msg_type) {
         case 1:
             handle_astronaut_movement(id, message.direction);
-            
             break;
         case 2:
             handle_astronaut_zap(id);
-            
-
             break;
         case 3:
             handle_astronaut_disconnect(id);
@@ -582,6 +582,7 @@ void process_message(void *socket) {
         con_reply.scores[i] = state.astronaut_scores[i];
     }
 
+    update_game_state();
     zmq_send(socket, &con_reply, sizeof(con_reply), 0);
 }
 
@@ -599,17 +600,17 @@ void print_game_field(game_state *state, WINDOW *number_window, WINDOW *game_win
         }
     }
 
-    // for (int i = 1; i < FIELD_SIZE+1; i++) {
-    //     for (int j = 1; j < FIELD_SIZE+1; j++) {
-    //         wmove(my_win, j, i);
-    //         waddch(my_win,state->game_field[i-1][j-1]| A_BOLD);
-    //     }}
-
-    // update score screen 
+    // update score screen
+    werase(score_window);
     mvwprintw(score_window, 1, 1, "SCORE");
 
+    int count = 0;
     for (int i = 0; i < MAX_PLAYERS; i++){
-        mvwprintw(score_window, i+2, 1, "%c - %d",letters[i], state->astronaut_scores[i]);
+
+        if(state->astronaut_scores[i] > -1){
+        mvwprintw(score_window, count +2, 1, "%c - %d",letters[i], state->astronaut_scores[i]);
+        count++;
+        }
     } 
   
     box(game_window, 0, 0);
@@ -649,8 +650,8 @@ int main() {
 	wrefresh(score_window);
 
     while (1) {
+        
         process_message(responder_interaction);
-        update_game_state();
         print_game_field(&state, numbers_window, game_window, score_window);
 
         // Send game state

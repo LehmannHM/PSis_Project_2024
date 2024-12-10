@@ -16,16 +16,13 @@
 int main ()
 {
     const char *empty = "";
-
-    // alterar cenas aqui
+    
     void *context = zmq_ctx_new ();
     void *subscriber = zmq_socket (context, ZMQ_SUB);
     zmq_connect (subscriber, DISPLAY_ADDRESS);
 
     //
     zmq_setsockopt (subscriber, ZMQ_SUBSCRIBE,empty, 0);  
-    //char password[] = "1";
-    //zmq_setsockopt (subscriber, ZMQ_SUBSCRIBE,password, strlen(password));
 
 	initscr();		    	
 	cbreak();				
@@ -33,54 +30,56 @@ int main ()
 	noecho();			    
 
     /* creates a window and draws a border */
-    WINDOW * my_win = newwin(FIELD_SIZE, FIELD_SIZE, 0, 0);
+    WINDOW *number_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
+    WINDOW *game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
+    WINDOW *score_window = newwin(15, 30, 1, FIELD_SIZE+5);
+    box(score_window, 0 , 0);	
 
-    WINDOW * my_win_2 = newwin(15, 30, 0, FIELD_SIZE+2);
-    box(my_win, 0 , 0);	
-    box(my_win_2, 0 , 0);
-	wrefresh(my_win);
-    wrefresh(my_win_2);
-
+	wrefresh(score_window);
     game_state current_state;
 
     int i,j;
 
     char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 
-    
-    //char pass_recv [1];
-
     while (1)
     {
-        
         // receive message
 
         //zmq_recv (subscriber, &pass_recv, strlen(password), 0);
         zmq_recv (subscriber, &current_state, sizeof(current_state), 0);  // msg type
 
         // update game screen
-        for (i = 0; i < FIELD_SIZE; i++) {
-        
-            for (j = 0; j < FIELD_SIZE; j++) {
-                wmove(my_win, j, i);
-                waddch(my_win,current_state.game_field[i][j]| A_BOLD);
-                
-            }
+        for (int i = 2; i <= FIELD_SIZE + 1; i++) {
+        mvwprintw(number_window, i, 0, "%d", (i-1) % 10);
+    }
+
+    // Print row numbers on left and game field
+    for (int i = 2; i <= FIELD_SIZE + 1; i++) {
+        mvwprintw(number_window, 0, i, "%d", (i-1) % 10);
+        for (int j = 1; j < FIELD_SIZE + 1; j++) {
+            wmove(game_window, j, i);
+            waddch(game_window, current_state.game_field[i-1][j-1] | A_BOLD);
         }
+    }
 
-        // update score screen 
-        mvwprintw(my_win_2, 1, 1, "SCORE");
-    
-        for (i = 0; i < MAX_PLAYERS; i++){
+    // update score screen
+    werase(score_window);
+    mvwprintw(score_window, 1, 1, "SCORE");
 
-            mvwprintw(my_win_2, i+2, 1, "%c - %d",letters[i], current_state.astronaut_scores[i]);              
-            
-        }  
+    int count = 0;
+    for (int i = 0; i < MAX_PLAYERS; i++){
 
-        // refresh screen
-        box(my_win, 0 , 0);
-        wrefresh(my_win);
-        wrefresh(my_win_2); 
+        if(current_state.astronaut_scores[i] > -1){
+        mvwprintw(score_window, count +2, 1, "%c - %d",letters[i], current_state.astronaut_scores[i]);
+        count++;
+        }
+    } 
+  
+    box(game_window, 0, 0);
+    wrefresh(number_window);
+    wrefresh(game_window);
+    wrefresh(score_window);
     }
 
   	endwin();			/* End curses mode		  */
