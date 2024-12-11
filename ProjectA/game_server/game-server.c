@@ -56,7 +56,7 @@ void initialize_astronauts(){     // can also replace astronaut when it gets dis
     if (astronauts[0].connect == 0){
         astronauts[0].id = 'A';
         astronauts[0].move_type = 'V';
-        astronauts[0].x = 2;
+        astronauts[0].x = 1;
         astronauts[0].y = FIELD_SIZE/2;
         astronauts[0].score = -1;
     }
@@ -88,7 +88,7 @@ void initialize_astronauts(){     // can also replace astronaut when it gets dis
     if (astronauts[4].connect == 0){ 
         astronauts[4].id = 'E';
         astronauts[4].move_type = 'V';
-        astronauts[4].x = 1;
+        astronauts[4].x = 0;
         astronauts[4].y = FIELD_SIZE/2;
         astronauts[4].score = -1;
     }
@@ -409,7 +409,7 @@ void handle_alien_movement(interaction_message message){
         }
 
     // set new position
-    if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x > ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
+    if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x >= ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
         alien->y = new_y;
         alien->x = new_x;
     }
@@ -609,12 +609,13 @@ void process_message(void *socket) {
 }
 
 void print_game_field(game_state *state, WINDOW *number_window, WINDOW *game_window, WINDOW *score_window) {
+    
     for (int i = 2; i <= FIELD_SIZE + 1; i++) {
         mvwprintw(number_window, i, 0, "%d", (i-1) % 10);
     }
 
     // Print row numbers on left and game field
-    for (int i = 2; i <= FIELD_SIZE + 1; i++) {
+    for (int i = 1; i <= FIELD_SIZE + 1; i++) {
         mvwprintw(number_window, 0, i, "%d", (i-1) % 10);
         for (int j = 1; j < FIELD_SIZE + 1; j++) {
             wmove(game_window, j, i);

@@ -77,7 +77,13 @@ int main() {
         for (int i = 0; i < MAX_PLAYERS; i++){
             // only print scores of connected astronauts
             if(connect_reply.scores[i] > -1){
+
+                
                 mvprintw(count, 0, "%c - %d",letters[i], connect_reply.scores[i]); 
+                if (letters[i] == m.id){
+                    mvprintw(count, 10, "[YOUR PLAYER]");     // identify player
+                }
+                
                 count++;
             }
         } 
