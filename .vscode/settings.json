@@ -22,6 +22,16 @@
             "cwd": "/home/matthi/projects/project/ProjectA/game_server",
             "binaryPath": "/home/matthi/projects/project/ProjectA/game_server/game-server",
             "binaryArgs": []
+        },
+        {
+            "cwd": "/home/matthi/projects/project/ProjectB/outer_space_display",
+            "binaryPath": "/home/matthi/projects/project/ProjectB/outer_space_display/outer-space-display",
+            "binaryArgs": []
+        },
+        {
+            "cwd": "/home/matthi/projects/project/ProjectB/game_server",
+            "binaryPath": "/home/matthi/projects/project/ProjectB/game_server/game-server",
+            "binaryArgs": []
         }
     ],
     "makefile.configureOnOpen": false
