@@ -37,6 +37,11 @@
             "cwd": "/home/matthi/projects/project/ProjectB/astronaut_display_client",
             "binaryPath": "/home/matthi/projects/project/ProjectB/astronaut_display_client/astronaut-display-client",
             "binaryArgs": []
+        },
+        {
+            "cwd": "/home/matthi/projects/project/ProjectB/astronaut_client",
+            "binaryPath": "/home/matthi/projects/project/ProjectB/astronaut_client/astronaut-client",
+            "binaryArgs": []
         }
     ],
     "makefile.configureOnOpen": false

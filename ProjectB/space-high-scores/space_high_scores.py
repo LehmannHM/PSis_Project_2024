@@ -13,6 +13,9 @@ def main(stdscr):
     stdscr.addstr(0, 0, "Astronaut Scores")
     stdscr.refresh()
 
+    # Dictionary to store the highest scores
+    highest_scores = {chr(65 + i): 0 for i in range(8)}
+
     while True:
         message = subscriber.recv()
         score_update = score_update_pb2.ScoreUpdate()
@@ -23,10 +26,17 @@ def main(stdscr):
             stdscr.refresh()
             continue
 
+        # Update the highest scores
+        for i, score in enumerate(score_update.scores):
+            astronaut = chr(65 + i)
+            if score > highest_scores[astronaut]:
+                highest_scores[astronaut] = score
+
+        # Display the highest scores
         stdscr.clear()
         stdscr.addstr(0, 0, "Astronaut Scores")
-        for i, score in enumerate(score_update.scores):
-            stdscr.addstr(i + 1, 0, f"Astronaut {chr(65 + i)}: {score}")
+        for i, (astronaut, score) in enumerate(highest_scores.items()):
+            stdscr.addstr(i + 1, 0, f"Astronaut {astronaut}: {score}")
         stdscr.refresh()
 
 if __name__ == "__main__":

@@ -4,6 +4,22 @@
 #include <string.h>
 #include "../common.h"
 
+void print_scores(connect_message *connect_reply) {
+    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
+    int count = 0;
+    clear();
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (connect_reply->scores[i] > -1) {
+            mvprintw(count, 0, "%c - %d", letters[i], connect_reply->scores[i]);
+            if (letters[i] == connect_reply->id) {
+                mvprintw(count, 10, "[YOUR PLAYER]");
+            }
+            count++;
+        }
+    }
+    refresh();
+}
+
 int main() {
     void *context = zmq_ctx_new();
     void *requester = zmq_socket(context, ZMQ_REQ);
@@ -37,59 +53,10 @@ int main() {
         return 0;
     }
 
-    int ch;
     m.id = connect_reply.id;
-    // m.code = connect_reply.code;
     memcpy(m.token, connect_reply.token, MAX_PLAYERS);
 
-    // exit when q is pressed
-    while ((ch = getch()) != 'q' && ch != 'Q') {
-        m.msg_type = 1;
-        
-        switch (ch) {
-            case KEY_UP:
-                m.direction = UP;
-                break;
-            case KEY_DOWN:
-                m.direction = DOWN;
-                break;
-            case KEY_LEFT:
-                m.direction = LEFT;
-                break;
-            case KEY_RIGHT:
-                m.direction = RIGHT;
-                break;
-            case ' ':
-                m.msg_type = 2;
-                break;
-            default:
-                continue;
-        }
-
-        // send action to server
-        zmq_send(requester, &m, sizeof(m), 0);
-
-        // receive scores
-        zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0); 
-
-        int count = 0;
-        clear();
-        for (int i = 0; i < MAX_PLAYERS; i++){
-            // only print scores of connected astronauts
-            if(connect_reply.scores[i] > -1){
-
-                
-                mvprintw(count, 0, "%c - %d",letters[i], connect_reply.scores[i]); 
-                if (letters[i] == m.id){
-                    mvprintw(count, 10, "[YOUR PLAYER]");     // identify player
-                }
-                
-                count++;
-            }
-        } 
-
-        refresh();
-    }
+    handle_keyboard_input(requester, &m, &connect_reply, letters, print_scores);
 
     // disconnect
     m.msg_type = 3;

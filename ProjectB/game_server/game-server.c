@@ -579,6 +579,7 @@ void process_message(void *socket) {
     }   
 
     connect_message con_reply;
+    con_reply.id = id;
     con_reply.connect = 1;
 
     switch(message.msg_type) {
@@ -663,7 +664,7 @@ int main() {
         process_message(responder_interaction);
 
         // print the game field to the screen
-        display_outer_space(&state, numbers_window, game_window, score_window);
+        display_outer_space(&state, numbers_window, game_window, score_window, NULL);
 
         // send updated game state
         zmq_send(publisher_display, &state, sizeof(state), 0);

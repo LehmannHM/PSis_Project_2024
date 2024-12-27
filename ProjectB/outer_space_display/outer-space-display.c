@@ -36,7 +36,7 @@ int main ()
     while (1)
     {
         zmq_recv (subscriber, &current_state, sizeof(current_state), 0);
-        display_outer_space(&current_state, number_window, game_window, score_window);
+        display_outer_space(&current_state, number_window, game_window, score_window, NULL);
     }
 
     endwin();
