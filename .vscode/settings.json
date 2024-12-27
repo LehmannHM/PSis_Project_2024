@@ -32,6 +32,11 @@
             "cwd": "/home/matthi/projects/project/ProjectB/game_server",
             "binaryPath": "/home/matthi/projects/project/ProjectB/game_server/game-server",
             "binaryArgs": []
+        },
+        {
+            "cwd": "/home/matthi/projects/project/ProjectB/astronaut_display_client",
+            "binaryPath": "/home/matthi/projects/project/ProjectB/astronaut_display_client/astronaut-display-client",
+            "binaryArgs": []
         }
     ],
     "makefile.configureOnOpen": false

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "score_update.pb-c.h"
 #include "../common.h"
 
 #include <sys/types.h>
@@ -608,6 +609,24 @@ void process_message(void *socket) {
     zmq_send(socket, &con_reply, sizeof(con_reply), 0);
 }
 
+// Function to send score updates
+void send_score_update(void *publisher_score) {
+    ScoreUpdate score_update = SCORE_UPDATE__INIT;
+    int scores[MAX_PLAYERS];
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        scores[i] = state.astronaut_scores[i];
+    }
+    score_update.n_scores = MAX_PLAYERS;
+    score_update.scores = scores;
+
+    size_t len = score_update__get_packed_size(&score_update);
+    void *buf = malloc(len);
+    score_update__pack(&score_update, buf);
+
+    zmq_send(publisher_score, buf, len, 0);
+    free(buf);
+}
+
 int main() {
     void *context = zmq_ctx_new();
 
@@ -617,20 +636,23 @@ int main() {
         printf("Error binding: %s\n", zmq_strerror(zmq_errno()));
         return -1;
     }
-    // assert(responder_interaction == 0);
 
-    // display PUP socket
+    // display PUB socket
     void *publisher_display = zmq_socket(context, ZMQ_PUB);
     zmq_bind(publisher_display, DISPLAY_ADDRESS);
+
+    // score update PUB socket
+    void *publisher_score = zmq_socket(context, ZMQ_PUB);
+    zmq_bind(publisher_score, SCORE_UPDATE_ADDRESS);
 
     // start variables
     initialize_game();
 
-    // lncurses 
+    // ncurses 
     initscr();		    	
-	cbreak();				
+    cbreak();				
     keypad(stdscr, TRUE);   
-	noecho();			    
+    noecho();			    
 
     WINDOW *numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
     WINDOW *game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
@@ -645,13 +667,16 @@ int main() {
 
         // send updated game state
         zmq_send(publisher_display, &state, sizeof(state), 0);
+
+        // send score update
+        send_score_update(publisher_score);
     }
 
     // cleanup
     endwin();
     zmq_close(responder_interaction);
     zmq_close(publisher_display);
+    zmq_close(publisher_score);
     zmq_ctx_destroy(context);
-    
     return 0;
 }

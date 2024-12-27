@@ -2,7 +2,68 @@
 #include <ncurses.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 #include "../common.h"
+
+typedef struct {
+    void *requester;
+    interaction_message *m;
+    connect_message *connect_reply;
+    char *letters;
+} input_thread_args;
+
+typedef struct {
+    void *subscriber;
+    game_state *current_state;
+    WINDOW *number_window;
+    WINDOW *game_window;
+    WINDOW *score_window;
+} display_thread_args;
+
+void *handle_input(void *args) {
+    input_thread_args *input_args = (input_thread_args *)args;
+    // handle_keyboard_input(input_args->requester, input_args->m, input_args->connect_reply, input_args->letters);
+    int ch;
+    while ((ch = getch()) != 'q' && ch != 'Q') {
+        input_args->m->msg_type = 1;
+        
+        switch (ch) {
+            case KEY_UP:
+                input_args->m->direction = UP;
+                break;
+            case KEY_DOWN:
+                input_args->m->direction = DOWN;
+                break;
+            case KEY_LEFT:
+                input_args->m->direction = LEFT;
+                break;
+            case KEY_RIGHT:
+                input_args->m->direction = RIGHT;
+                break;
+            case ' ':
+                input_args->m->msg_type = 2;
+                break;
+            default:
+                continue;
+        }
+
+        // send action to server
+        zmq_send(input_args->requester, input_args->m, sizeof(*input_args->m), 0);
+
+        // receive scores
+        zmq_recv(input_args->requester, input_args->connect_reply, sizeof(*input_args->connect_reply), 0); 
+    }
+    return NULL;
+}
+
+void *update_display(void *args) {
+    display_thread_args *display_args = (display_thread_args *)args;
+    while (1) {
+        zmq_recv(display_args->subscriber, display_args->current_state, sizeof(game_state), 0);
+        display_outer_space(display_args->current_state, display_args->number_window, display_args->game_window, display_args->score_window);
+    }
+    return NULL;
+}
 
 int main() {
     void *context = zmq_ctx_new();
@@ -44,45 +105,20 @@ int main() {
         return 0;
     }
 
-    int ch;
     m.id = connect_reply.id;
     memcpy(m.token, connect_reply.token, TOKEN_SIZE);
 
+    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
     game_state current_state;
 
-    while ((ch = getch()) != 'q' && ch != 'Q') {
-        m.msg_type = 1;
+    pthread_t input_thread, display_thread;
+    input_thread_args input_args = {requester, &m, &connect_reply, letters};
+    display_thread_args display_args = {subscriber, &current_state, number_window, game_window, score_window};
 
-        switch (ch) {
-            case KEY_UP:
-                m.direction = UP;
-                break;
-            case KEY_DOWN:
-                m.direction = DOWN;
-                break;
-            case KEY_LEFT:
-                m.direction = LEFT;
-                break;
-            case KEY_RIGHT:
-                m.direction = RIGHT;
-                break;
-            case ' ':
-                m.msg_type = 2;
-                break;
-            default:
-                continue;
-        }
+    pthread_create(&input_thread, NULL, handle_input, &input_args);
+    pthread_create(&display_thread, NULL, update_display, &display_args);
 
-        zmq_send(requester, &m, sizeof(m), 0);
-        zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0);
-
-        zmq_recv(subscriber, &current_state, sizeof(current_state), 0);
-        display_outer_space(&current_state, number_window, game_window, score_window);
-    }
-
-    m.msg_type = 3;
-    zmq_send(requester, &m, sizeof(m), 0);
-    zmq_recv(requester, NULL, 0, 0);
+    pthread_join(input_thread, NULL);
 
     endwin();
     zmq_close(requester);

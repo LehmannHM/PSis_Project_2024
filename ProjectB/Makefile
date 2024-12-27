@@ -1,33 +1,33 @@
 # Compiler settings
 CC = gcc
 CFLAGS = -Wall -g
-LDFLAGS = -lzmq -lncurses
+LDFLAGS = -lzmq -lncurses -lprotobuf-c
 
 # Source files with path
-SERVER_SRC = ProjectB/game_server/game-server.c
+SERVER_SRC = ProjectB/game_server/game-server.c ProjectB/game_server/score_update.pb-c.c
 CLIENT_SRC = ProjectB/astronaut_client/astronaut-client.c
-CLIENT_DSIPLAY_SRC = ProjectB/astronaut_display_client/astronaut-display-client.c
+CLIENT_DISPLAY_SRC = ProjectB/astronaut_display_client/astronaut-display-client.c
 DISPLAY_SRC = ProjectB/outer_space_display/outer-space-display.c
 
 # Executable names
 SERVER_EXE = ProjectB/game_server/game-server
 CLIENT_EXE = ProjectB/astronaut_client/astronaut-client
-CLIENT_DSIPLAY_EXE = ProjectB/astronaut_display_client/astronaut-display-client
+CLIENT_DISPLAY_EXE = ProjectB/astronaut_display_client/astronaut-display-client
 DISPLAY_EXE = ProjectB/outer_space_display/outer-space-display
 
 # Default target to build all executables
-all: $(SERVER_EXE) $(CLIENT_EXE) $(DISPLAY_EXE) $(CLIENT_DSIPLAY_EXE)
+all: $(SERVER_EXE) $(CLIENT_EXE) $(DISPLAY_EXE) $(CLIENT_DISPLAY_EXE)
 
 # Build server executable
 $(SERVER_EXE): $(SERVER_SRC)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Build client executable
 $(CLIENT_EXE): $(CLIENT_SRC)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 # Build client display executable
-$(CLIENT_DSIPLAY_EXE): $(CLIENT_DSIPLAY_SRC)
+$(CLIENT_DISPLAY_EXE): $(CLIENT_DISPLAY_SRC)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 # Build display executable
@@ -36,4 +36,4 @@ $(DISPLAY_EXE): $(DISPLAY_SRC)
 
 # Clean target to remove compiled files
 clean:
-	rm -f $(SERVER_EX)
+	rm -f $(SERVER_EXE) $(CLIENT_EXE) $(CLIENT_DISPLAY_EXE) $(DISPLAY_EXE)

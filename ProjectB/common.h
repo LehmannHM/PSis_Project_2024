@@ -1,5 +1,6 @@
 #define INTERACTION_ADDRESS "tcp://localhost:5555"
 #define DISPLAY_ADDRESS "tcp://localhost:5556"
+#define SCORE_UPDATE_ADDRESS "tcp://localhost:5557" // New address for score updates
 
 #define MAX_PLAYERS 8
 #define FIELD_SIZE 20
