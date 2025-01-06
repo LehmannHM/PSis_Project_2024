@@ -50,6 +50,9 @@ Alien aliens[ALIEN_MAX_COUNT];
 //--------------------------
 int alien_count;
 int alien_add_count;
+
+struct timespec alien_respawn_time;
+
 WINDOW *numbers_window;
 WINDOW *game_window;
 WINDOW *score_window;
@@ -267,9 +270,14 @@ void update_game_state() {
                     state.game_field[start_x][aliens[j].y] = '|'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
+                    alien_count--;   // update counter
 
                     // to reset counter
-                    alien_add_count = 0;
+                    //alien_add_count = 0;
+                    alien_respawn_time = current_time;
+                    alien_respawn_time.tv_sec += 10;
+                    
+                    
                 }
 
                 else if (astronaut->move_type == 'V' && aliens[j].connect && aliens[j].y == start_y) {
@@ -277,9 +285,13 @@ void update_game_state() {
                     state.game_field[aliens[j].x][start_y] = '-'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
+                    alien_count--;  // update counter
 
                     // to reset counter
-                    alien_add_count = 0;
+                    //alien_add_count = 0;
+                    alien_respawn_time = current_time;
+                    alien_respawn_time.tv_sec += 10;
+                    
                     
                 }
             }       
@@ -339,6 +351,13 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
 
     int new_x;
     int new_y;
+
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+
+    alien_respawn_time = current_time;
+    alien_respawn_time.tv_sec += 10;   // add 10 seconds
+    
     while(1){
 
         pthread_mutex_lock(&mtx_alien);                   // need to put function to put star back?
@@ -397,9 +416,11 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
 
          // make function to generate aliens if no aliens are killed for 10 seconds... (if alien count doesnt change for 10 seconds right?)
          // counter for this ?
-         alien_add_count++; 
+         
+         //alien_add_count++; 
+         clock_gettime(CLOCK_MONOTONIC, &current_time);
 
-         if (alien_add_count == 10)
+         if (time_diff_ms(current_time, alien_respawn_time) < 0) //(alien_add_count == 10)
          {
 
             to_add = alien_count*0.1; // check if this gives an int
@@ -411,7 +432,7 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
                     break;
                 }
 
-                if (aliens[j].connect == 0)
+                if (aliens[j].connect == 0) // ofc we are assuming that the max number of aliens is fixed.....(can't go beyond that number)
                 {
                     // adding new alien
                     aliens[j].connect = 1;
@@ -421,13 +442,21 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
 
                     // add to the game field
                     state.game_field[aliens[j].x][aliens[j].y] = '*';
+
+                    // update alien_counter
+                    alien_count ++;
+
+                    // one less alien to add
                     to_add--;
                 } 
                 
             }
 
-            alien_add_count = 0;
+            //alien_add_count = 0;
             // remember to set this to zero when alien is killed
+
+            alien_respawn_time = current_time;
+            alien_respawn_time.tv_sec += 10;   // add 10 seconds
             
          }
        
