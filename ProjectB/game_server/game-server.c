@@ -10,6 +10,7 @@
 #include "../common.h"
 
 #include <sys/types.h>
+#include <pthread.h>
 
 // ---------------- constants -------------------------------
 #define MAX_PLAYERS 8
@@ -46,6 +47,21 @@ game_state state;
 Astronaut astronauts[MAX_PLAYERS];
 int astronaut_count = 0;
 Alien aliens[ALIEN_MAX_COUNT];
+//--------------------------
+int alien_count;
+int alien_add_count;
+WINDOW *numbers_window;
+WINDOW *game_window;
+WINDOW *score_window;
+
+// thread initializing
+pthread_mutex_t mtx_alien = PTHREAD_MUTEX_INITIALIZER;
+
+// to be able to send display updates from alien trhead
+void *context;
+void *publisher_display;
+
+//-------------------------
 
 double time_diff_ms(struct timespec start, struct timespec end) {
     double result = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
@@ -175,28 +191,6 @@ void generate_aliens(){
     }
 }
 
-void initialize_game() {
-    // initialize the game field to empty spaces
-    for (int i = 0; i < FIELD_SIZE; i++) {
-        for (int j = 0; j < FIELD_SIZE; j++) {
-            state.game_field[i][j] = ' '; // fill with empty spaces
-        }
-    }
-
-    for (int i = 0; i < MAX_PLAYERS; i++) { // initialize astronauts
-        astronauts[i].connect = 0;
-    } 
-
-    for (int i = 0; i < ALIEN_MAX_COUNT; i++) { // initialize aliens
-        aliens[i].connect = 0;
-    }
-
-    initialize_astronauts();
-
-    for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
-        generate_aliens();
-    }
-}
 
 int find_astronaut_index(char id) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -264,6 +258,8 @@ void update_game_state() {
             int start_x = astronaut->x;                 
             int start_y = astronaut->y;
 
+            pthread_mutex_lock(&mtx_alien);
+
             for (int j = 0; j <= ALIEN_MAX_COUNT; j++) {
 
                 if (astronaut->move_type == 'H' && aliens[j].connect && aliens[j].x == start_x) {
@@ -271,6 +267,9 @@ void update_game_state() {
                     state.game_field[start_x][aliens[j].y] = '|'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
+
+                    // to reset counter
+                    alien_add_count = 0;
                 }
 
                 else if (astronaut->move_type == 'V' && aliens[j].connect && aliens[j].y == start_y) {
@@ -278,6 +277,9 @@ void update_game_state() {
                     state.game_field[aliens[j].x][start_y] = '-'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
+
+                    // to reset counter
+                    alien_add_count = 0;
                     
                 }
             }       
@@ -296,7 +298,196 @@ void update_game_state() {
 
         // update scores
         state.astronaut_scores[i] = astronaut->score;
+
+        pthread_mutex_unlock(&mtx_alien);
+
+        
     }
+}
+
+//------------------------------------------------------------------------------
+void * thread_alien_function(void * arg){  // single thread to manage aliens
+    
+    
+    //input of arg is the id ? no need? have alien_count ....
+
+    // display PUP socket
+    //void *publisher_display = zmq_socket(context, ZMQ_PUB);
+    //zmq_bind(publisher_display, DISPLAY_ADDRESS);
+
+    // initialize aliens
+    pthread_mutex_lock(&mtx_alien);
+    for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
+        
+        
+        // initialize alien
+        aliens[i].connect = 1;
+        aliens[i].id = i;
+        aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;
+        aliens[i].y = rand() % (FIELD_SIZE - 4) + 2;
+
+        // add to the game field
+        state.game_field[aliens[i].x][aliens[i].y] = '*';
+
+    }
+    alien_count = ALIEN_MAX_COUNT; //?? 
+    pthread_mutex_unlock(&mtx_alien);
+
+    direction_t direction;
+    int to_add=0;
+
+
+    int new_x;
+    int new_y;
+    while(1){
+
+        pthread_mutex_lock(&mtx_alien);                   // need to put function to put star back?
+        for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
+
+            if (aliens[i].connect)
+            {
+                // get old pos
+                new_x = aliens[i].x;
+                new_y = aliens[i].y;
+
+                // old position clear    
+                state.game_field[aliens[i].x][aliens[i].y] = ' ';
+
+                // check if there was another alien there
+                for (int j = 0; j < ALIEN_MAX_COUNT; j++) {
+
+                    if (aliens[i].x == aliens[j].x && aliens[i].y == aliens[j].y && i != j && aliens[j].connect) {
+
+                        state.game_field[aliens[i].x][aliens[i].y] = '*'; // put star back
+                    }
+                                    
+                }
+
+                direction = random()%4;
+
+                switch(direction) {
+                    case DOWN: // Move down
+                        new_y++;
+                        break;
+                    case UP: // Move up
+                        new_y--;
+                        break;
+                    case RIGHT: // Move right
+                        new_x++;
+                        break;
+                    case LEFT: // Move left
+                        new_x--;
+                        break;
+                    }
+
+                // set new position
+            if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x >= ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
+                aliens[i].y = new_y;
+                aliens[i].x = new_x;
+            }
+            // set new pos
+            state.game_field[aliens[i].x][aliens[i].y] = '*';
+
+            }
+
+            
+
+        }
+
+
+         // make function to generate aliens if no aliens are killed for 10 seconds... (if alien count doesnt change for 10 seconds right?)
+         // counter for this ?
+         alien_add_count++; 
+
+         if (alien_add_count == 10)
+         {
+
+            to_add = alien_count*0.1; // check if this gives an int
+            // add 10% of aliens
+            for (int j = 0; j < ALIEN_MAX_COUNT; j++)
+            {
+                // get out the loop if there is no aliens to add
+                if(to_add == 0){
+                    break;
+                }
+
+                if (aliens[j].connect == 0)
+                {
+                    // adding new alien
+                    aliens[j].connect = 1;
+                    aliens[j].id = j;
+                    aliens[j].x = rand() % (FIELD_SIZE - 4) + 2;
+                    aliens[j].y = rand() % (FIELD_SIZE - 4) + 2;
+
+                    // add to the game field
+                    state.game_field[aliens[j].x][aliens[j].y] = '*';
+                    to_add--;
+                } 
+                
+            }
+
+            alien_add_count = 0;
+            // remember to set this to zero when alien is killed
+            
+         }
+       
+        pthread_mutex_unlock(&mtx_alien);
+
+        update_game_state();
+        // print the game field to the screen
+        //display_outer_space(&state, numbers_window, game_window, score_window);
+
+        pthread_mutex_lock(&mtx_alien);
+        display_outer_space(&state, numbers_window, game_window, score_window, NULL);
+        pthread_mutex_unlock(&mtx_alien);
+
+        //sleep(0.5);
+        usleep(500000);
+        update_game_state();
+
+        //display_outer_space(&state, numbers_window, game_window, score_window);
+        pthread_mutex_lock(&mtx_alien);
+        display_outer_space(&state, numbers_window, game_window, score_window, NULL);
+        //pthread_mutex_unlock(&mtx_alien);
+
+
+        //pub sub
+        //pthread_mutex_lock(&mtx_alien);
+        zmq_send(publisher_display, &state, sizeof(state), 0);
+        pthread_mutex_unlock(&mtx_alien);
+
+        //wait a second
+        //sleep(0.5);
+        usleep(500000);
+}
+}
+//-----------------------------------------------------------------------------
+
+void initialize_game() {
+    // initialize the game field to empty spaces
+    for (int i = 0; i < FIELD_SIZE; i++) {
+        for (int j = 0; j < FIELD_SIZE; j++) {
+            state.game_field[i][j] = ' '; // fill with empty spaces
+        }
+    }
+
+    for (int i = 0; i < MAX_PLAYERS; i++) { // initialize astronauts
+        astronauts[i].connect = 0;
+    } 
+
+    for (int i = 0; i < ALIEN_MAX_COUNT; i++) { // initialize aliens
+        aliens[i].connect = 0;
+    }
+
+    initialize_astronauts();
+
+    // --------------------------------------- alien thread
+    pthread_t t_alien;
+    pthread_create(&t_alien, NULL, thread_alien_function, NULL);
+
+    /*for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
+        generate_aliens();
+    }*/
 }
 
 char validate_message(interaction_message *message) {     
@@ -564,11 +755,11 @@ void process_message(void *socket) {
         return;
     }
 
-    if (message.msg_type == 4) {
+    /*if (message.msg_type == 4) {
         handleAlienConnect(socket);
         update_game_state();
         return;
-    }
+    }*/
 
     char id = validate_message(&message);
 
@@ -593,13 +784,13 @@ void process_message(void *socket) {
             handle_astronaut_disconnect(id);
             con_reply.connect = 0;
             break;
-        case 5:
+        /*case 5:
             int index = find_alien_index(id);
             if(index > -1 && aliens[index].connect == 0){    // remove the aliens
                 con_reply.connect = 0;
                 break;
             }
-            handle_alien_movement(message);
+            handle_alien_movement(message);*/
     }
     // Send the scores
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -629,7 +820,8 @@ void send_score_update(void *publisher_score) {
 }
 
 int main() {
-    void *context = zmq_ctx_new();
+
+    context = zmq_ctx_new();
 
     // interaction REP socket
     void *responder_interaction = zmq_socket(context, ZMQ_REP);
@@ -639,7 +831,7 @@ int main() {
     }
 
     // display PUB socket
-    void *publisher_display = zmq_socket(context, ZMQ_PUB);
+    publisher_display = zmq_socket(context, ZMQ_PUB);
     zmq_bind(publisher_display, DISPLAY_ADDRESS);
 
     // score update PUB socket
@@ -655,9 +847,9 @@ int main() {
     keypad(stdscr, TRUE);   
     noecho();			    
 
-    WINDOW *numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
-    WINDOW *game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
-    WINDOW *score_window = newwin(15, 30, 1, FIELD_SIZE+5);
+    numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
+    game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
+    score_window = newwin(15, 30, 1, FIELD_SIZE+5);
 
     while (1) {
         // process current message, update game state and respond        
