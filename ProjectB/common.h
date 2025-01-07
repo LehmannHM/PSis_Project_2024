@@ -7,6 +7,8 @@
 
 #define TOKEN_SIZE 8
 
+extern char letters[8];
+
 typedef struct game_state {
     char game_field[FIELD_SIZE][FIELD_SIZE];
     int astronaut_scores[MAX_PLAYERS]; // -1 not present, order from A to H
@@ -31,5 +33,5 @@ typedef struct connect_message {
 
 typedef void (*score_callback_t)(connect_message *connect_reply);
 
-void handle_keyboard_input(void *requester, interaction_message *m, connect_message *connect_reply, char *letters, score_callback_t callback);
+void handle_keyboard_input(void *requester, interaction_message *m, connect_message *connect_reply, score_callback_t callback);
 void display_outer_space(game_state *state, WINDOW *number_window, WINDOW *game_window, WINDOW *score_window, char *current_player);

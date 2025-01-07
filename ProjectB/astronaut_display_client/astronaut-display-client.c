@@ -9,7 +9,6 @@ typedef struct {
     void *requester;
     interaction_message *m;
     connect_message *connect_reply;
-    char *letters;
     volatile int *exit_flag;
 } input_thread_args;
 
@@ -28,7 +27,7 @@ volatile int exit_flag = 0;
 void *handle_input(void *args) {
     input_thread_args *input_args = (input_thread_args *)args;
     
-    handle_keyboard_input(input_args->requester, input_args->m, input_args->connect_reply, input_args->letters, NULL);
+    handle_keyboard_input(input_args->requester, input_args->m, input_args->connect_reply, NULL);
 
     // set exit flag
     *(input_args->exit_flag) = 1;
@@ -92,11 +91,10 @@ int main() {
     m.id = connect_reply.id;
     memcpy(m.token, connect_reply.token, TOKEN_SIZE);
 
-    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
     game_state current_state;
 
     pthread_t input_thread, display_thread;
-    input_thread_args input_args = {requester, &m, &connect_reply, letters, &exit_flag};
+    input_thread_args input_args = {requester, &m, &connect_reply, &exit_flag};
     display_thread_args display_args = {subscriber, &current_state, number_window, game_window, score_window, &exit_flag, m.id};
 
     pthread_create(&input_thread, NULL, handle_input, &input_args);

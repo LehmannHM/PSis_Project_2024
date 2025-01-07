@@ -4,7 +4,9 @@
 #include <string.h>
 #include "common.h"
 
-void handle_keyboard_input(void *requester, interaction_message *m, connect_message *connect_reply, char *letters, score_callback_t callback) {
+char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
+
+void handle_keyboard_input(void *requester, interaction_message *m, connect_message *connect_reply, score_callback_t callback) {
     int ch;
     while ((ch = getch()) != 'q' && ch != 'Q') {
         m->msg_type = 1;
@@ -43,7 +45,6 @@ void handle_keyboard_input(void *requester, interaction_message *m, connect_mess
 }
 
 void display_outer_space(game_state *state, WINDOW *number_window, WINDOW *game_window, WINDOW *score_window, char *current_player) {
-    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 
     for (int i = 2; i <= FIELD_SIZE + 1; i++) {
         mvwprintw(number_window, i, 0, "%d", (i-1) % 10);

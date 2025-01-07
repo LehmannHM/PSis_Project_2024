@@ -5,7 +5,6 @@
 #include "../common.h"
 
 void print_scores(connect_message *connect_reply) {
-    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
     int count = 0;
     clear();
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -34,8 +33,6 @@ int main() {
     noecho();
     keypad(stdscr, TRUE);
     
-    char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
-
     interaction_message m;
     // connect to server
     m.msg_type = 0;
@@ -56,7 +53,7 @@ int main() {
     m.id = connect_reply.id;
     memcpy(m.token, connect_reply.token, MAX_PLAYERS);
 
-    handle_keyboard_input(requester, &m, &connect_reply, letters, print_scores);
+    handle_keyboard_input(requester, &m, &connect_reply, print_scores);
 
     // disconnect
     m.msg_type = 3;

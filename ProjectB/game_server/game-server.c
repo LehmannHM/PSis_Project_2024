@@ -42,7 +42,6 @@ typedef struct {
 } Alien;
 
 // initialize global variables
-char letters[8] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
 game_state state;
 Astronaut astronauts[MAX_PLAYERS];
 int astronaut_count = 0;
@@ -488,7 +487,7 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
         //wait a second
         //sleep(0.5);
         usleep(500000);
-}
+    }
 }
 //-----------------------------------------------------------------------------
 
@@ -590,80 +589,82 @@ void handle_astronaut_connect(void *client_socket) {
     astronaut_count++;
 }
 
+// Remove
+// void handle_alien_movement(interaction_message message){
 
-void handle_alien_movement(interaction_message message){
+//     int index = find_alien_index(message.id);
+//     if (index == -1) return;
 
-    int index = find_alien_index(message.id);
-    if (index == -1) return;
+//     Alien *alien = &aliens[index];
 
-    Alien *alien = &aliens[index];
+//     int new_x = alien->x;
+//     int new_y = alien->y;
 
-    int new_x = alien->x;
-    int new_y = alien->y;
+//     // old position clear    
+//     state.game_field[alien->x][alien->y] = ' ';
 
-    // old position clear    
-    state.game_field[alien->x][alien->y] = ' ';
+//     // check if there was another alien there
+//     for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
 
-    // check if there was another alien there
-    for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
+//         if (alien->x == aliens[i].x && alien->y == aliens[i].y && i!= index && aliens[i].connect) {
 
-        if (alien->x == aliens[i].x && alien->y == aliens[i].y && i!= index && aliens[i].connect) {
-
-            state.game_field[alien->x][alien->y] = '*'; // put star back
-        }
+//             state.game_field[alien->x][alien->y] = '*'; // put star back
+//         }
                         
-    }
+//     }
 
-    switch(message.direction) {
-        case DOWN: // Move down
-            new_y++;
-            break;
-        case UP: // Move up
-            new_y--;
-            break;
-        case RIGHT: // Move right
-            new_x++;
-            break;
-        case LEFT: // Move left
-            new_x--;
-            break;
-        }
+//     switch(message.direction) {
+//         case DOWN: // Move down
+//             new_y++;
+//             break;
+//         case UP: // Move up
+//             new_y--;
+//             break;
+//         case RIGHT: // Move right
+//             new_x++;
+//             break;
+//         case LEFT: // Move left
+//             new_x--;
+//             break;
+//         }
 
-    // set new position
-    if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x >= ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
-        alien->y = new_y;
-        alien->x = new_x;
-    }
+//     // set new position
+//     if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x >= ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
+//         alien->y = new_y;
+//         alien->x = new_x;
+//     }
     
-    state.game_field[alien->x][alien->y] = '*';
-}
+//     state.game_field[alien->x][alien->y] = '*';
+// }
 
-void handleAlienConnect(void *client_socket){
+// Remove
 
-    connect_message con_reply;
-    int i;
+// void handleAlienConnect(void *client_socket){
 
-    for (i = 0; i < ALIEN_MAX_COUNT; i++) {
-        if (aliens[i].connect == 0){
-            generate_token(aliens[i].token);
-            aliens[i].connect = 1;
-            aliens[i].id = 'J' + i;
-            break;
-        }                        
-    }
+//     connect_message con_reply;
+//     int i;
+
+//     for (i = 0; i < ALIEN_MAX_COUNT; i++) {
+//         if (aliens[i].connect == 0){
+//             generate_token(aliens[i].token);
+//             aliens[i].connect = 1;
+//             aliens[i].id = 'J' + i;
+//             break;
+//         }                        
+//     }
     
-    // Generate random number between for position
-    aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;  
-    aliens[i].y = rand() % (FIELD_SIZE - 4) + 2;
+//     // Generate random number between for position
+//     aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;  
+//     aliens[i].y = rand() % (FIELD_SIZE - 4) + 2;
 
-    state.game_field[aliens[i].x][aliens[i].y] = '*';
+//     state.game_field[aliens[i].x][aliens[i].y] = '*';
     
-    con_reply.id = aliens[i].id;
-    memcpy(con_reply.token, aliens[i].token, TOKEN_SIZE);
-    zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
+//     con_reply.id = aliens[i].id;
+//     memcpy(con_reply.token, aliens[i].token, TOKEN_SIZE);
+//     zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
     
-    return;
-}
+//     return;
+// }
 
 void handle_astronaut_movement(char id, direction_t direction) {
     int index = find_astronaut_index(id);
