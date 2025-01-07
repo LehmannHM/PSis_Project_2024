@@ -456,36 +456,49 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
        
         pthread_mutex_unlock(&mtx_alien);
 
-        update_game_state();
-        // print the game field to the screen
-        //display_outer_space(&state, numbers_window, game_window, score_window);
+        // update_game_state();
+        // // print the game field to the screen
+        // //display_outer_space(&state, numbers_window, game_window, score_window);
 
-        pthread_mutex_lock(&mtx_alien);
-        display_outer_space(&state, numbers_window, game_window, score_window, NULL);
-        pthread_mutex_unlock(&mtx_alien);
-        zmq_send(publisher_display, &state, sizeof(state), 0);
+        // pthread_mutex_lock(&mtx_alien);
+        // display_outer_space(&state, numbers_window, game_window, score_window, NULL);
+        // pthread_mutex_unlock(&mtx_alien);
+        // zmq_send(publisher_display, &state, sizeof(state), 0);
 
-        //sleep(0.5);
-        usleep(500000);
-        update_game_state();
+        // //sleep(0.5);
+        // usleep(500000);
+        // update_game_state();
 
-        //display_outer_space(&state, numbers_window, game_window, score_window);
-        pthread_mutex_lock(&mtx_alien);
-        display_outer_space(&state, numbers_window, game_window, score_window, NULL);
-        //pthread_mutex_unlock(&mtx_alien);
+        // //display_outer_space(&state, numbers_window, game_window, score_window);
+        // pthread_mutex_lock(&mtx_alien);
+        // display_outer_space(&state, numbers_window, game_window, score_window, NULL);
+        // //pthread_mutex_unlock(&mtx_alien);
 
 
-        //pub sub
-        //pthread_mutex_lock(&mtx_alien);
-        zmq_send(publisher_display, &state, sizeof(state), 0);
-        pthread_mutex_unlock(&mtx_alien);
+        // //pub sub
+        // //pthread_mutex_lock(&mtx_alien);
+        // zmq_send(publisher_display, &state, sizeof(state), 0);
+        // pthread_mutex_unlock(&mtx_alien);
 
         //wait a second
         //sleep(0.5);
-        usleep(500000);
+        usleep(1000000);
     }
 }
 //-----------------------------------------------------------------------------
+
+void *game_state_update_thread(void *arg) {
+    while (1) {
+        update_game_state();
+        pthread_mutex_lock(&mtx_alien);
+        display_outer_space(&state, numbers_window, game_window, score_window, NULL);
+        zmq_send(publisher_display, &state, sizeof(state), 0);
+        pthread_mutex_unlock(&mtx_alien);
+
+        usleep(100000);
+    }
+    return NULL;
+}
 
 void initialize_game() {
     // initialize the game field to empty spaces
@@ -876,6 +889,9 @@ int main() {
     numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
     game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
     score_window = newwin(15, 30, 1, FIELD_SIZE+5);
+
+    pthread_t game_state_thread;
+    pthread_create(&game_state_thread, NULL, game_state_update_thread, NULL);
 
     while (1) {
         // process current message, update game state and respond        
