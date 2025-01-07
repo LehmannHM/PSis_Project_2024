@@ -275,8 +275,6 @@ void update_game_state() {
                     //alien_add_count = 0;
                     alien_respawn_time = current_time;
                     alien_respawn_time.tv_sec += 10;
-                    
-                    
                 }
 
                 else if (astronaut->move_type == 'V' && aliens[j].connect && aliens[j].y == start_y) {
@@ -290,8 +288,6 @@ void update_game_state() {
                     //alien_add_count = 0;
                     alien_respawn_time = current_time;
                     alien_respawn_time.tv_sec += 10;
-                    
-                    
                 }
             }       
 
@@ -312,7 +308,6 @@ void update_game_state() {
 
         pthread_mutex_unlock(&mtx_alien);
 
-        
     }
 }
 
@@ -468,6 +463,7 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
         pthread_mutex_lock(&mtx_alien);
         display_outer_space(&state, numbers_window, game_window, score_window, NULL);
         pthread_mutex_unlock(&mtx_alien);
+        zmq_send(publisher_display, &state, sizeof(state), 0);
 
         //sleep(0.5);
         usleep(500000);
