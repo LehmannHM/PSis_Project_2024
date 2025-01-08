@@ -1,6 +1,6 @@
 #define INTERACTION_ADDRESS "tcp://localhost:5555"
 #define DISPLAY_ADDRESS "tcp://localhost:5556"
-#define SCORE_UPDATE_ADDRESS "tcp://localhost:5557" // New address for score updates
+#define SCORE_UPDATE_ADDRESS "tcp://localhost:5557"
 
 #define MAX_PLAYERS 8
 #define FIELD_SIZE 20
@@ -18,7 +18,7 @@ typedef enum direction_t {UP, DOWN, LEFT, RIGHT} direction_t;
 
 // interaction message for the astronauts and aliens
 typedef struct interaction_message {   
-    int msg_type; // 0 - connect   1 - move  2 - zap  3 - disconnect  4 - alien connect  5 - alien move
+    int msg_type; // 0 - connect   1 - move  2 - zap  3 - disconnect
     char id;                                 
     direction_t direction;
     unsigned char token[TOKEN_SIZE]; // token to validate client messages

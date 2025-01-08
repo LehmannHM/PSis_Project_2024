@@ -6,7 +6,7 @@ import google.protobuf
 def main(stdscr):
     context = zmq.Context()
     subscriber = context.socket(zmq.SUB)
-    subscriber.connect("tcp://localhost:5557")  # Updated to new score update address
+    subscriber.connect("tcp://localhost:5557")
     subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
 
     stdscr.clear()

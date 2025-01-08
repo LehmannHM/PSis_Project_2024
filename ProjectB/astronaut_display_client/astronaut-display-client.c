@@ -24,7 +24,7 @@ typedef struct {
 
 volatile int exit_flag = 0;
 
-void *handle_input(void *args) {
+void *thread_handle_input(void *args) {
     input_thread_args *input_args = (input_thread_args *)args;
     
     handle_keyboard_input(input_args->requester, input_args->m, input_args->connect_reply, NULL);
@@ -39,7 +39,7 @@ void *handle_input(void *args) {
     return NULL;
 }
 
-void *update_display(void *args) {
+void *thread_update_display(void *args) {
     display_thread_args *display_args = (display_thread_args *)args;
     while (!*(display_args->exit_flag)) {
         zmq_recv(display_args->subscriber, display_args->current_state, sizeof(game_state), 0);
@@ -97,8 +97,8 @@ int main() {
     input_thread_args input_args = {requester, &m, &connect_reply, &exit_flag};
     display_thread_args display_args = {subscriber, &current_state, number_window, game_window, score_window, &exit_flag, m.id};
 
-    pthread_create(&input_thread, NULL, handle_input, &input_args);
-    pthread_create(&display_thread, NULL, update_display, &display_args);
+    pthread_create(&input_thread, NULL, thread_handle_input, &input_args);
+    pthread_create(&display_thread, NULL, thread_update_display, &display_args);
 
     pthread_join(input_thread, NULL);
     pthread_join(display_thread, NULL);

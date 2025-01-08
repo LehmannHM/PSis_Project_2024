@@ -260,34 +260,37 @@ void update_game_state() {
             int start_x = astronaut->x;                 
             int start_y = astronaut->y;
 
-            pthread_mutex_lock(&mtx_alien);
 
             for (int j = 0; j <= ALIEN_MAX_COUNT; j++) {
 
                 if (astronaut->move_type == 'H' && aliens[j].connect && aliens[j].x == start_x) {
+
+                    pthread_mutex_lock(&mtx_alien);
 
                     state.game_field[start_x][aliens[j].y] = '|'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
                     alien_count--;   // update counter
 
-                    // to reset counter
-                    //alien_add_count = 0;
                     alien_respawn_time = current_time;
                     alien_respawn_time.tv_sec += 10;
+
+                    pthread_mutex_unlock(&mtx_alien);
                 }
 
                 else if (astronaut->move_type == 'V' && aliens[j].connect && aliens[j].y == start_y) {
+
+                    pthread_mutex_lock(&mtx_alien);
 
                     state.game_field[aliens[j].x][start_y] = '-'; // remove alien from field
                     (astronaut->score)++;
                     aliens[j].connect = 0;
                     alien_count--;  // update counter
 
-                    // to reset counter
-                    //alien_add_count = 0;
                     alien_respawn_time = current_time;
                     alien_respawn_time.tv_sec += 10;
+
+                    pthread_mutex_unlock(&mtx_alien);
                 }
             }       
 
@@ -305,22 +308,11 @@ void update_game_state() {
 
         // update scores
         state.astronaut_scores[i] = astronaut->score;
-
-        pthread_mutex_unlock(&mtx_alien);
-
     }
 }
 
-//------------------------------------------------------------------------------
 void * thread_alien_function(void * arg){  // single thread to manage aliens
     
-    
-    //input of arg is the id ? no need? have alien_count ....
-
-    // display PUP socket
-    //void *publisher_display = zmq_socket(context, ZMQ_PUB);
-    //zmq_bind(publisher_display, DISPLAY_ADDRESS);
-
     // initialize aliens
     pthread_mutex_lock(&mtx_alien);
     for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
@@ -354,7 +346,7 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
     
     while(1){
 
-        pthread_mutex_lock(&mtx_alien);                   // need to put function to put star back?
+        pthread_mutex_lock(&mtx_alien);
         for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
 
             if (aliens[i].connect)
@@ -402,37 +394,39 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
             state.game_field[aliens[i].x][aliens[i].y] = '*';
 
             }
-
-            
-
         }
 
+        clock_gettime(CLOCK_MONOTONIC, &current_time);
 
-         // make function to generate aliens if no aliens are killed for 10 seconds... (if alien count doesnt change for 10 seconds right?)
-         // counter for this ?
-         
-         //alien_add_count++; 
-         clock_gettime(CLOCK_MONOTONIC, &current_time);
+        if (time_diff_ms(current_time, alien_respawn_time) < 0)
+        {
 
-         if (time_diff_ms(current_time, alien_respawn_time) < 0) //(alien_add_count == 10)
-         {
-
-            to_add = alien_count*0.1; // check if this gives an int
+            to_add = alien_count*0.1;
             // add 10% of aliens
             for (int j = 0; j < ALIEN_MAX_COUNT; j++)
             {
                 // get out the loop if there is no aliens to add
-                if(to_add == 0){
+                if (to_add == 0){
                     break;
                 }
 
-                if (aliens[j].connect == 0) // ofc we are assuming that the max number of aliens is fixed.....(can't go beyond that number)
-                {
+                if (aliens[j].connect == 1) continue;
+
+                int attempts = 0;
+                do {
+                    aliens[j].x = rand() % (FIELD_SIZE - 4) + 2;
+                    aliens[j].y = rand() % (FIELD_SIZE - 4) + 2;
+                    attempts++;
+                } while (state.game_field[aliens[j].x][aliens[j].y] == '*' && attempts < 100);
+
+                if (attempts >= 100) {
+                    // If we can't find a free spot after 100 attempts, skip adding this alien
+                    aliens[j].connect = 0;
+                    continue;
+                } else {
                     // adding new alien
                     aliens[j].connect = 1;
                     aliens[j].id = j;
-                    aliens[j].x = rand() % (FIELD_SIZE - 4) + 2;
-                    aliens[j].y = rand() % (FIELD_SIZE - 4) + 2;
 
                     // add to the game field
                     state.game_field[aliens[j].x][aliens[j].y] = '*';
@@ -442,58 +436,24 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
 
                     // one less alien to add
                     to_add--;
-                } 
-                
+                }                
             }
-
-            //alien_add_count = 0;
-            // remember to set this to zero when alien is killed
 
             alien_respawn_time = current_time;
             alien_respawn_time.tv_sec += 10;   // add 10 seconds
             
-         }
+        }
        
         pthread_mutex_unlock(&mtx_alien);
-
-        // update_game_state();
-        // // print the game field to the screen
-        // //display_outer_space(&state, numbers_window, game_window, score_window);
-
-        // pthread_mutex_lock(&mtx_alien);
-        // display_outer_space(&state, numbers_window, game_window, score_window, NULL);
-        // pthread_mutex_unlock(&mtx_alien);
-        // zmq_send(publisher_display, &state, sizeof(state), 0);
-
-        // //sleep(0.5);
-        // usleep(500000);
-        // update_game_state();
-
-        // //display_outer_space(&state, numbers_window, game_window, score_window);
-        // pthread_mutex_lock(&mtx_alien);
-        // display_outer_space(&state, numbers_window, game_window, score_window, NULL);
-        // //pthread_mutex_unlock(&mtx_alien);
-
-
-        // //pub sub
-        // //pthread_mutex_lock(&mtx_alien);
-        // zmq_send(publisher_display, &state, sizeof(state), 0);
-        // pthread_mutex_unlock(&mtx_alien);
-
-        //wait a second
-        //sleep(0.5);
         usleep(1000000);
     }
 }
-//-----------------------------------------------------------------------------
 
 void *game_state_update_thread(void *arg) {
     while (1) {
         update_game_state();
-        pthread_mutex_lock(&mtx_alien);
         display_outer_space(&state, numbers_window, game_window, score_window, NULL);
         zmq_send(publisher_display, &state, sizeof(state), 0);
-        pthread_mutex_unlock(&mtx_alien);
 
         usleep(100000);
     }
@@ -518,13 +478,8 @@ void initialize_game() {
 
     initialize_astronauts();
 
-    // --------------------------------------- alien thread
     pthread_t t_alien;
     pthread_create(&t_alien, NULL, thread_alien_function, NULL);
-
-    /*for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
-        generate_aliens();
-    }*/
 }
 
 char validate_message(interaction_message *message) {     
@@ -597,83 +552,6 @@ void handle_astronaut_connect(void *client_socket) {
     zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
     astronaut_count++;
 }
-
-// Remove
-// void handle_alien_movement(interaction_message message){
-
-//     int index = find_alien_index(message.id);
-//     if (index == -1) return;
-
-//     Alien *alien = &aliens[index];
-
-//     int new_x = alien->x;
-//     int new_y = alien->y;
-
-//     // old position clear    
-//     state.game_field[alien->x][alien->y] = ' ';
-
-//     // check if there was another alien there
-//     for (int i = 0; i < ALIEN_MAX_COUNT; i++) {
-
-//         if (alien->x == aliens[i].x && alien->y == aliens[i].y && i!= index && aliens[i].connect) {
-
-//             state.game_field[alien->x][alien->y] = '*'; // put star back
-//         }
-                        
-//     }
-
-//     switch(message.direction) {
-//         case DOWN: // Move down
-//             new_y++;
-//             break;
-//         case UP: // Move up
-//             new_y--;
-//             break;
-//         case RIGHT: // Move right
-//             new_x++;
-//             break;
-//         case LEFT: // Move left
-//             new_x--;
-//             break;
-//         }
-
-//     // set new position
-//     if (new_x < ASTRONAUT_MAX && new_y < ASTRONAUT_MAX && new_x >= ASTRONAUT_MIN && new_y >= ASTRONAUT_MIN){
-//         alien->y = new_y;
-//         alien->x = new_x;
-//     }
-    
-//     state.game_field[alien->x][alien->y] = '*';
-// }
-
-// Remove
-
-// void handleAlienConnect(void *client_socket){
-
-//     connect_message con_reply;
-//     int i;
-
-//     for (i = 0; i < ALIEN_MAX_COUNT; i++) {
-//         if (aliens[i].connect == 0){
-//             generate_token(aliens[i].token);
-//             aliens[i].connect = 1;
-//             aliens[i].id = 'J' + i;
-//             break;
-//         }                        
-//     }
-    
-//     // Generate random number between for position
-//     aliens[i].x = rand() % (FIELD_SIZE - 4) + 2;  
-//     aliens[i].y = rand() % (FIELD_SIZE - 4) + 2;
-
-//     state.game_field[aliens[i].x][aliens[i].y] = '*';
-    
-//     con_reply.id = aliens[i].id;
-//     memcpy(con_reply.token, aliens[i].token, TOKEN_SIZE);
-//     zmq_send(client_socket, &con_reply, sizeof(con_reply), 0);
-    
-//     return;
-// }
 
 void handle_astronaut_movement(char id, direction_t direction) {
     int index = find_astronaut_index(id);
@@ -794,12 +672,6 @@ void process_message(void *socket) {
         return;
     }
 
-    /*if (message.msg_type == 4) {
-        handleAlienConnect(socket);
-        update_game_state();
-        return;
-    }*/
-
     char id = validate_message(&message);
 
     // handle invalid message
@@ -823,13 +695,6 @@ void process_message(void *socket) {
             handle_astronaut_disconnect(id);
             con_reply.connect = 0;
             break;
-        /*case 5:
-            int index = find_alien_index(id);
-            if(index > -1 && aliens[index].connect == 0){    // remove the aliens
-                con_reply.connect = 0;
-                break;
-            }
-            handle_alien_movement(message);*/
     }
     // Send the scores
     for (int i = 0; i < MAX_PLAYERS; i++) {
