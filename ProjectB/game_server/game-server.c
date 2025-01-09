@@ -41,6 +41,13 @@ typedef struct {
     unsigned char token[TOKEN_SIZE];
 } Alien;
 
+typedef struct {
+    void *publisher_display;
+    WINDOW *number_window;
+    WINDOW *game_window;
+    WINDOW *score_window;
+} update_thread_args;
+
 // initialize global variables
 game_state state;
 Astronaut astronauts[MAX_PLAYERS];
@@ -52,18 +59,8 @@ int alien_add_count;
 
 struct timespec alien_respawn_time;
 
-WINDOW *numbers_window;
-WINDOW *game_window;
-WINDOW *score_window;
-
 // thread initializing
 pthread_mutex_t mtx_alien = PTHREAD_MUTEX_INITIALIZER;
-
-// to be able to send display updates from alien trhead
-void *context;
-void *publisher_display;
-
-//-------------------------
 
 double time_diff_ms(struct timespec start, struct timespec end) {
     double result = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
@@ -136,63 +133,6 @@ void initialize_astronauts(){     // can also replace astronaut when it gets dis
         astronauts[7].score = -1;
     }
 }
-
-void generate_aliens(){
-
-    pid_t pid = fork();  // create a new process
-
-    if (pid < 0) {
-        // error occurred
-        perror("Fork failed");
-        exit(1); // terminate child process
-    } else if (pid == 0) {
-        void *context = zmq_ctx_new();
-        void *requester = zmq_socket(context, ZMQ_REQ);
-        if (zmq_connect(requester, INTERACTION_ADDRESS) != 0) {
-            printf("Error connecting to server: %s\n", zmq_strerror(zmq_errno()));
-        }
-        
-        interaction_message m;
-
-        // connect to server
-        m.msg_type = 4;
-        if (zmq_send(requester, &m, sizeof(m), 0) == -1) {
-            printf("Error sending message: %s\n", zmq_strerror(zmq_errno()));
-        }
-
-        // receive assigned letter
-        connect_message connect_reply;
-        zmq_recv(requester, &connect_reply, sizeof(connect_message), 0);
-
-        m.id = connect_reply.id;
-        memcpy(m.token, connect_reply.token, TOKEN_SIZE);
-
-        srand((int)m.id);
-
-        while (1) {
-            m.msg_type = 5;
-            
-            m.direction = random()%4;
-
-            zmq_send(requester, &m, sizeof(m), 0);
-            
-            zmq_recv(requester, &connect_reply, sizeof(connect_reply), 0);
-
-            if(connect_reply.connect==0){
-                break;
-            }
-            sleep(1);            
-        }
-        // cleanup
-        zmq_close(requester);
-        zmq_ctx_destroy(context);
-
-        exit(0); // terminate child process
-
-    } else {// parent process
-    }
-}
-
 
 int find_astronaut_index(char id) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -328,7 +268,7 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
         state.game_field[aliens[i].x][aliens[i].y] = '*';
 
     }
-    alien_count = ALIEN_MAX_COUNT; //?? 
+    alien_count = ALIEN_MAX_COUNT;
     pthread_mutex_unlock(&mtx_alien);
 
     direction_t direction;
@@ -449,11 +389,13 @@ void * thread_alien_function(void * arg){  // single thread to manage aliens
     }
 }
 
-void *game_state_update_thread(void *arg) {
+void *game_state_update_thread(void *args) {
+    update_thread_args *update_args = (update_thread_args *)args;
+
     while (1) {
         update_game_state();
-        display_outer_space(&state, numbers_window, game_window, score_window, NULL);
-        zmq_send(publisher_display, &state, sizeof(state), 0);
+        display_outer_space(&state, update_args->number_window, update_args->game_window, update_args->score_window, NULL);
+        zmq_send(update_args->publisher_display, &state, sizeof(state), 0);
 
         usleep(100000);
     }
@@ -725,7 +667,7 @@ void send_score_update(void *publisher_score) {
 
 int main() {
 
-    context = zmq_ctx_new();
+    void *context = zmq_ctx_new();
 
     // interaction REP socket
     void *responder_interaction = zmq_socket(context, ZMQ_REP);
@@ -735,7 +677,7 @@ int main() {
     }
 
     // display PUB socket
-    publisher_display = zmq_socket(context, ZMQ_PUB);
+    void *publisher_display = zmq_socket(context, ZMQ_PUB);
     zmq_bind(publisher_display, DISPLAY_ADDRESS);
 
     // score update PUB socket
@@ -751,12 +693,13 @@ int main() {
     keypad(stdscr, TRUE);   
     noecho();			    
 
-    numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
-    game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
-    score_window = newwin(15, 30, 1, FIELD_SIZE+5);
+    WINDOW *numbers_window = newwin(FIELD_SIZE + 3, FIELD_SIZE + 3, 0, 0);
+    WINDOW *game_window = newwin(FIELD_SIZE + 2, FIELD_SIZE + 2, 1, 1);
+    WINDOW *score_window = newwin(15, 30, 1, FIELD_SIZE+5);
 
     pthread_t game_state_thread;
-    pthread_create(&game_state_thread, NULL, game_state_update_thread, NULL);
+    update_thread_args update_args = {publisher_display, numbers_window, game_window, score_window};
+    pthread_create(&game_state_thread, NULL, game_state_update_thread, &update_args);
 
     while (1) {
         // process current message, update game state and respond        
