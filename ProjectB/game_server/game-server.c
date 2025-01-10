@@ -236,9 +236,9 @@ void update_game_state() {
 
             // check for other astronauts in the line of fire
             for (int j = 0; j < MAX_PLAYERS; j++) {
-                if (astronauts[j].id != astronaut->id && astronaut[j].connect) { 
+                if (astronauts[j].id != astronaut->id && astronauts[j].connect == 1) { 
                     if ((astronaut->move_type == 'H' && astronaut->x == astronauts[j].x) ||
-                        (astronaut->move_type == 'V' && astronauts[i].y == astronauts[j].y)) {
+                        (astronaut->move_type == 'V' && astronaut->y == astronauts[j].y)) {
                         astronauts[j].finished_stunned = current_time;
                         astronauts[j].finished_stunned.tv_sec += STUN_DURATION;
                     }
